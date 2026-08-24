@@ -50,6 +50,27 @@ class Category extends SnipeModel
         'require_acceptance' => 'boolean',
         'use_default_eula' => 'boolean',
         'category_type' => 'required|in:asset,accessory,consumable,component,license',
+        // ERS virtual sidebar grouping (Assets > Hardware / Software).
+        // This is a value-validity invariant that applies to EVERY write
+        // path (App\Http\Controllers\CategoriesController, imports, the
+        // API, artisan/tinker, seeders/factories): if it's set at all, it
+        // must be exactly 'hardware' or 'software' — anything else fails
+        // validation and the save is rejected. It stays nullable at the
+        // model level (never required_if here) so internal/non-form
+        // writers that don't touch this attribute at all — including
+        // every pre-existing category_type = asset category left behind
+        // by the migration — are unaffected.
+        //
+        // *Requiring* a group specifically when a human creates/edits an
+        // asset category through the category form is instead enforced
+        // one layer up, in CategoriesController::validateErsAssetGroupInput(),
+        // against the request's raw input and the category's EFFECTIVE
+        // category_type (which, on update, may differ from what was
+        // submitted once the type has been locked). Keeping that
+        // "required" rule out of this global ruleset is what stops it
+        // from also blocking internal, non-form asset-category writers
+        // that were never meant to be gated by this feature.
+        'ers_asset_group' => 'nullable|in:hardware,software',
     ];
 
     /**
@@ -80,6 +101,12 @@ class Category extends SnipeModel
         'tag_color',
         'notes',
     ];
+
+    // ers_asset_group is deliberately NOT fillable. It is always written
+    // explicitly by App\Http\Controllers\CategoriesController (which
+    // forces it to null for every category_type other than 'asset'
+    // regardless of what was submitted), never via mass assignment from
+    // raw request input — see store()/update() there.
 
     use Searchable;
 
