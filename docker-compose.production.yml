@@ -1,0 +1,69 @@
+# Production deployment overlay for the ERSDev server.
+#
+# This file is NOT a replacement for docker-compose.yml — it is merged on
+# top of it, exactly like docker-compose.local.yml is for local
+# development. Nothing here duplicates or restates settings that are
+# already correct in the base file (image tag aside); Compose merges
+# `volumes:` entries by container target path across files, so the
+# read-only mounts added below are appended to — not a replacement for —
+# the base file's own `storage:/var/lib/snipeit` volume mount, and the
+# `db` service, its healthcheck, its persistent `db_data` volume, and the
+# base file's port mapping are all left completely untouched because
+# this file simply never mentions them.
+#
+# What this overlay changes, and nothing else:
+#   1. Pins the `app` image to the exact tested digest instead of the
+#      floating `${APP_VERSION:-latest}` tag the base file resolves to.
+#      NEVER deploy `snipe/snipe-it:latest` to ERSDev — an untested image
+#      can ship an unreviewed schema or behavior change straight to
+#      production.
+#   2. Adds the same read-only ERS customization bind mounts already
+#      proven working by docker-compose.local.yml, so the stock,
+#      unmodified `snipe/snipe-it` image serves the ERS Hardware/Software
+#      asset-grouping customization in production too.
+#
+# `restart: unless-stopped` is intentionally NOT repeated here — the base
+# docker-compose.yml already sets it for both `app` and `db`, and an
+# override here would be redundant, not safer.
+#
+# No environment values, credentials, API tokens, or URLs are set in this
+# file. `env_file: .env` (already declared in the base file) supplies all
+# of that from a server-side .env that is never committed — see
+# DEPLOYMENT.md for the required variables and how to create it safely.
+#
+# Usage (not run automatically by this change):
+#   docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+#
+# Validate only, without starting anything:
+#   docker compose -f docker-compose.yml -f docker-compose.production.yml config --quiet
+#
+# See DEPLOYMENT.md for the full first-deploy, update, and rollback
+# procedures this file is meant to be used with.
+
+services:
+  app:
+    image: snipe/snipe-it@sha256:18f70b714f78e416fb0cb9e5f1b079caa073665de3d9e42e2aa798cc0db5b8fd
+    volumes:
+      # Same ten read-only bind mounts as docker-compose.local.yml,
+      # covering every ERS Hardware/Software asset-grouping runtime file
+      # (config, models, controllers, the breadcrumb provider, the
+      # sidebar composer, the customized Blade views, and the one
+      # migration this feature added). Nothing here is writable from
+      # inside the container, and nothing here touches
+      # integrations/google-sheets-sync, which is a standalone tool
+      # deployed and configured separately — see DEPLOYMENT.md.
+      - ./config/ers_assets.php:/var/www/html/config/ers_assets.php:ro
+      - ./app/View/Composers/SidebarComposer.php:/var/www/html/app/View/Composers/SidebarComposer.php:ro
+      - ./app/Http/Controllers/Assets/AssetsController.php:/var/www/html/app/Http/Controllers/Assets/AssetsController.php:ro
+      - ./app/Http/Controllers/CategoriesController.php:/var/www/html/app/Http/Controllers/CategoriesController.php:ro
+      - ./app/Models/Category.php:/var/www/html/app/Models/Category.php:ro
+      - ./app/Providers/BreadcrumbsServiceProvider.php:/var/www/html/app/Providers/BreadcrumbsServiceProvider.php:ro
+      - ./resources/views/layouts/default.blade.php:/var/www/html/resources/views/layouts/default.blade.php:ro
+      - ./resources/views/hardware/index.blade.php:/var/www/html/resources/views/hardware/index.blade.php:ro
+      - ./resources/views/categories/edit.blade.php:/var/www/html/resources/views/categories/edit.blade.php:ro
+      - ./database/migrations/2026_08_24_000000_add_ers_asset_group_to_categories_table.php:/var/www/html/database/migrations/2026_08_24_000000_add_ers_asset_group_to_categories_table.php:ro
+
+  # db: intentionally not declared here. The base docker-compose.yml's
+  # `db` service — its mariadb image, restart policy, healthcheck,
+  # environment (sourced from server-side variables, never this file),
+  # and the persistent `db_data` volume — applies completely unchanged.
