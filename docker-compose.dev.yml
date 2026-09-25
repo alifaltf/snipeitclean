@@ -1,0 +1,7 @@
+# Build Snipe-IT from the current working tree for local development.
+services:
+  app:
+    image: ers-snipeit-dev:local
+    build:
+      context: .
+      dockerfile: Dockerfile

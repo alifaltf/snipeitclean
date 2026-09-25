@@ -11,3 +11,6 @@ node_modules
 .vagrant
 .idea
 
+# Local environment files and secrets
+.env
+.env.*
