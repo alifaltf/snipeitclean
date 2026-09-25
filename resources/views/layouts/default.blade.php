@@ -401,7 +401,7 @@
                                     <x-icon type="angle-left" class="pull-right fa-fw"/>
                                 </a>
                                 <ul class="treeview-menu">
-                                    <li {!! (!request()->query('status_type') && !request()->query('category_id') && !request()->query('asset_group') && (request()->is('hardware')) ? ' class="active" aria-current="page"' : '') !!}>
+                                    <li {!! (!request()->query('status_type') && (request()->is('hardware')) ? ' class="active" aria-current="page"' : '') !!}>
                                         <a href="{{ url('hardware') }}">
                                             <x-icon type="circle" class="text-grey fa-fw"/>
                                             {{ trans('general.list_all') }}
@@ -410,59 +410,6 @@
                                             </span>
                                         </a>
                                     </li>
-
-                                    {{--
-                                        ERS-specific "Hardware" / "Software" virtual sidebar groups.
-                                        Neither is itself a Snipe-IT category — both are purely sidebar
-                                        groupings over EXISTING asset categories whose `ers_asset_group`
-                                        column matches the group's key (see
-                                        database/migrations/2026_08_24_000000_..., App\Models\Category,
-                                        and config/ers_assets.php, which supplies only each group's
-                                        presentation — label / "All ..." label & title — never a category
-                                        allow-list). All category_id resolution happens server-side:
-                                        SidebarComposer resolves what's shown here, AssetsController@index
-                                        independently resolves what's actually filtered — nothing here
-                                        queries the database directly. A category with no ers_asset_group
-                                        set (every pre-existing category, until an administrator assigns
-                                        one via Settings > Categories > Edit) simply doesn't appear under
-                                        either group, and a group with zero assigned categories is skipped
-                                        entirely below. Both reuse the existing hardware.index route /
-                                        AssetsController / GET /api/v1/hardware endpoint / Assets
-                                        permissions — only the category_id (or asset_group, resolved to
-                                        category_id server-side) filter is new.
-                                    --}}
-                                    <?php $ersRequestAssetGroup = is_scalar(request()->query('asset_group')) ? (string) request()->query('asset_group') : null; ?>
-                                    <?php $ersRequestCategoryId = (is_scalar(request()->query('category_id')) && ctype_digit((string) request()->query('category_id'))) ? (int) request()->query('category_id') : null; ?>
-                                    @foreach (($ers_sidebar ?? []) as $ersGroupKey => $ersGroup)
-                                        @continue(empty($ersGroup['categories'] ?? []))
-                                        <?php $ersGroupCategoryIds = array_column($ersGroup['categories'], 'category_id'); ?>
-                                        <?php $ersAllActive = request()->is('hardware') && $ersRequestAssetGroup === $ersGroupKey; ?>
-                                        <?php $ersGroupActive = $ersAllActive || (request()->is('hardware') && $ersRequestCategoryId !== null && in_array($ersRequestCategoryId, $ersGroupCategoryIds, true)); ?>
-                                        <li id="ers-{{ $ersGroupKey }}-sidenav-option" class="treeview{{ $ersGroupActive ? ' active' : '' }}">
-                                            <a href="#">
-                                                <x-icon type="circle" class="text-grey fa-fw"/>
-                                                {{ $ersGroup['label'] ?? ucfirst($ersGroupKey) }}
-                                                <x-icon type="angle-left" class="pull-right fa-fw"/>
-                                            </a>
-                                            <ul class="treeview-menu">
-                                                <li id="ers-{{ $ersGroupKey }}-all-sidenav-option"{!! ($ersAllActive ? ' class="active" aria-current="page"' : '') !!}>
-                                                    <a href="{{ route('hardware.index', ['asset_group' => $ersGroupKey]) }}">
-                                                        <x-icon type="circle" class="text-grey fa-fw"/>
-                                                        {{ $ersGroup['all_label'] ?? trans('general.all') }}
-                                                    </a>
-                                                </li>
-                                                @foreach ($ersGroup['categories'] as $ersCategory)
-                                                    <?php $ersChildActive = request()->is('hardware') && $ersRequestAssetGroup === null && $ersRequestCategoryId === (int) $ersCategory['category_id']; ?>
-                                                    <li id="ers-{{ $ersGroupKey }}-{{ $ersCategory['key'] }}-sidenav-option"{!! ($ersChildActive ? ' class="active" aria-current="page"' : '') !!}>
-                                                        <a href="{{ route('hardware.index', ['category_id' => $ersCategory['category_id']]) }}">
-                                                            <x-icon type="circle" class="text-grey fa-fw"/>
-                                                            {{ $ersCategory['label'] }}
-                                                        </a>
-                                                    </li>
-                                                @endforeach
-                                            </ul>
-                                        </li>
-                                    @endforeach
 
                                     <?php $status_navs = \App\Models\Statuslabel::where('show_in_nav', '=', 1)->withCount('assets as asset_count')->get(); ?>
                                     @if (count($status_navs) > 0)

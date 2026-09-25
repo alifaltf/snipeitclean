@@ -29,15 +29,10 @@ class CreateCategoriesTest extends TestCase
     {
         $this->assertFalse(Category::where('name', 'Test Category')->exists());
 
-        // category_type = asset now requires an Asset Group (Hardware or
-        // Software) — see App\Http\Controllers\CategoriesController::
-        // validateErsAssetGroupInput() — so this otherwise-generic
-        // "can create a category" test has to supply one.
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('categories.store'), [
                 'name' => 'Test Category',
                 'category_type' => 'asset',
-                'ers_asset_group' => 'hardware',
                 'eula_text' => 'Sample text',
                 'require_acceptance' => '1',
                 'notes' => 'My Note',
@@ -47,7 +42,6 @@ class CreateCategoriesTest extends TestCase
         $this->assertDatabaseHas('categories', [
             'name' => 'Test Category',
             'category_type' => 'asset',
-            'ers_asset_group' => 'hardware',
             'eula_text' => 'Sample text',
             'notes' => 'My Note',
             'require_acceptance' => 1,

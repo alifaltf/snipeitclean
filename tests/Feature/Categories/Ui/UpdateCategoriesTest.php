@@ -29,14 +29,10 @@ class UpdateCategoriesTest extends TestCase
 
     public function test_user_can_create_categories()
     {
-        // category_type = asset now requires an Asset Group (Hardware or
-        // Software) — see App\Http\Controllers\CategoriesController::
-        // validateErsAssetGroupInput().
         $this->actingAs(User::factory()->superuser()->create())
             ->post(route('categories.store'), [
                 'name' => 'Test Category',
                 'category_type' => 'asset',
-                'ers_asset_group' => 'hardware',
             ])
             ->assertStatus(302)
             ->assertSessionHasNoErrors()
@@ -51,23 +47,16 @@ class UpdateCategoriesTest extends TestCase
             'name' => 'Test Category',
             'require_acceptance' => false,
             'alert_on_response' => false,
-            'ers_asset_group' => 'hardware',
         ]);
 
         $this->assertTrue(Category::where('name', 'Test Category')->exists());
 
-        // Editing an already-grouped asset category must keep working
-        // even when the request doesn't re-submit ers_asset_group's
-        // *current* value under a different key — the edit form always
-        // resubmits the field, but this proves the update path itself
-        // still requires (and here, re-affirms) it.
         $response = $this->actingAs(User::factory()->superuser()->create())
             ->put(route('categories.update', $category), [
                 'name' => 'Test Category Edited',
                 'notes' => 'Test Note Edited',
                 'require_acceptance' => '1',
                 'alert_on_response' => '1',
-                'ers_asset_group' => 'hardware',
             ])
             ->assertStatus(302)
             ->assertSessionHasNoErrors()

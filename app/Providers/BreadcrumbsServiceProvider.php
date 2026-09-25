@@ -45,12 +45,17 @@ class BreadcrumbsServiceProvider extends ServiceProvider
         /**
          * Asset Breadcrumbs
          */
-        Breadcrumbs::for('hardware.index', function (Trail $trail) {
-            $trail->parent('home', route('home'))
-                ->push(trans('general.assets'), route('hardware.index'));
+        if ((request()->is('hardware*')) && (request()->status_type != '')) {
+            Breadcrumbs::for('hardware.index', fn (Trail $trail) => $trail->parent('home', route('home'))
+                ->push(trans('general.assets'), route('hardware.index'))
+                ->push(trans('general.'.strtolower(e(request()->status_type))), route('hardware.index', ['status_type' => request()->status_type]))
+            );
 
-            $this->pushHardwareIndexTrailingCrumb($trail);
-        });
+        } else {
+            Breadcrumbs::for('hardware.index', fn (Trail $trail) => $trail->parent('home', route('home'))
+                ->push(trans('general.assets'), route('hardware.index'))
+            );
+        }
 
         Breadcrumbs::for('hardware.create', fn (Trail $trail) => $trail->parent('hardware.index', route('hardware.index'))
             ->push(trans('general.create'), route('hardware.create'))
@@ -569,135 +574,6 @@ class BreadcrumbsServiceProvider extends ServiceProvider
             ->push(trans('general.update'))
         );
 
-    }
-
-    /**
-     * Pushes the single trailing breadcrumb segment (if any) for
-     * 'hardware.index', beyond the fixed "Home > Assets" prefix pushed by
-     * its caller above. Tries, in the same order and with the same
-     * DB-backed resolution and safe fallbacks as
-     * App\Http\Controllers\Assets\AssetsController@index (which this
-     * mirrors so the breadcrumb never disagrees with what's actually
-     * filtered/titled/highlighted on the page):
-     *
-     *   1. asset_group=hardware|software — only if config('ers_assets')
-     *      defines it AND at least one category_type=asset category is
-     *      currently assigned to it.
-     *   2. category_id=<id> — only if it's an existing category_type=asset
-     *      category. Its own ers_asset_group (if any) is pushed first, so
-     *      a Hardware child category's trail reads
-     *      Home > Assets > Hardware > Laptop.
-     *   3. status_type=<...> — the pre-existing status-filter crumb.
-     *
-     * An unknown/empty/invalid asset_group or category_id (or an
-     * asset_group with zero categories currently assigned to it) pushes
-     * nothing at all here, leaving the trail at plain "Home > Assets" —
-     * matching the page's own fallback to unfiltered "All Assets"
-     * content for those same inputs. Nothing here is ever hard-coded by
-     * category name or ID.
-     */
-    private function pushHardwareIndexTrailingCrumb(Trail $trail): void
-    {
-        if ($this->pushErsAssetGroupCrumb($trail)) {
-            return;
-        }
-
-        if ($this->pushErsCategoryCrumb($trail)) {
-            return;
-        }
-
-        $statusType = request()->status_type;
-
-        // is_scalar guard: an array-shaped status_type (e.g.
-        // ?status_type[]=x, seen in the wild via malformed/malicious
-        // query strings — see AssetIndexTest::test_page_renders_with_array_query_inputs)
-        // must never reach e()/trans() here. This closure runs against
-        // the LIVE per-request request() at breadcrumb-render time (not
-        // just once at boot), so it needs the same defensive guard
-        // AssetsController@index and hardware/index.blade.php already
-        // apply to every other request-derived value on this page.
-        if (is_scalar($statusType) && $statusType != '') {
-            $trail->push(trans('general.'.strtolower(e($statusType))), route('hardware.index', ['status_type' => $statusType]));
-        }
-    }
-
-    /**
-     * Pushes the Hardware/Software virtual-group crumb when
-     * request('asset_group') resolves to a configured group that
-     * currently has at least one category_type=asset category assigned
-     * to it. Returns whether it pushed anything, so the caller knows not
-     * to also try category_id/status_type.
-     */
-    private function pushErsAssetGroupCrumb(Trail $trail): bool
-    {
-        $assetGroupKey = request()->input('asset_group');
-
-        if (! is_scalar($assetGroupKey) || $assetGroupKey === '') {
-            return false;
-        }
-
-        $groups = (array) config('ers_assets', []);
-        $groupKey = (string) $assetGroupKey;
-
-        if (! array_key_exists($groupKey, $groups) || ! is_array($groups[$groupKey])) {
-            return false;
-        }
-
-        if (! Category::query()->where('category_type', 'asset')->where('ers_asset_group', $groupKey)->exists()) {
-            return false;
-        }
-
-        $trail->push($this->ersAssetGroupLabel($groupKey, $groups), route('hardware.index', ['asset_group' => $groupKey]));
-
-        return true;
-    }
-
-    /**
-     * Pushes the crumb(s) for request('category_id') when it's an
-     * existing category_type=asset category: its own Hardware/Software
-     * group crumb first (if it has one assigned), then the category's
-     * own name. Returns whether it pushed anything.
-     */
-    private function pushErsCategoryCrumb(Trail $trail): bool
-    {
-        $categoryId = request()->input('category_id');
-
-        if (! is_scalar($categoryId) || $categoryId === '' || ! ctype_digit((string) $categoryId)) {
-            return false;
-        }
-
-        $category = Category::query()->where('category_type', 'asset')->find((int) $categoryId);
-
-        if (! $category) {
-            return false;
-        }
-
-        $groups = (array) config('ers_assets', []);
-
-        if (is_string($category->ers_asset_group) && array_key_exists($category->ers_asset_group, $groups) && is_array($groups[$category->ers_asset_group])) {
-            $trail->push($this->ersAssetGroupLabel($category->ers_asset_group, $groups), route('hardware.index', ['asset_group' => $category->ers_asset_group]));
-        }
-
-        $trail->push($category->name, route('hardware.index', ['category_id' => $category->id]));
-
-        return true;
-    }
-
-    /**
-     * The sidebar label configured for an ERS virtual group (e.g.
-     * "Hardware"), falling back to a capitalized version of the group
-     * key itself if config('ers_assets') doesn't define one.
-     *
-     * @param  array<string, mixed>  $groups  The full config('ers_assets')
-     *                                        array, already fetched by the
-     *                                        caller — avoids re-reading
-     *                                        config() per crumb.
-     */
-    private function ersAssetGroupLabel(string $groupKey, array $groups): string
-    {
-        $label = $groups[$groupKey]['label'] ?? null;
-
-        return is_string($label) && $label !== '' ? $label : ucfirst($groupKey);
     }
 
     /**
