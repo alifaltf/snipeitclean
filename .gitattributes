@@ -1,3 +1,5 @@
 * text=auto
 public/js/** binary
 public/css/** binary
+docker/startup.sh text eol=lf
+docker/supervisor-exit-event-listener text eol=lf
