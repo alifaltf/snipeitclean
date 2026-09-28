@@ -18,6 +18,7 @@ use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\User;
 use App\Observers\AssetObserver;
+use App\Services\AssetCategorySelection;
 use App\View\Label;
 use Carbon\Carbon;
 use Com\Tecnick\Barcode\Barcode;
@@ -68,7 +69,13 @@ class AssetsController extends Controller
         $companyId = $request->input('company_id');
         $company = is_scalar($companyId) ? Company::find($companyId) : null;
 
-        return view('hardware/index')->with('company', $company);
+        // ERS: optional ?asset_category=<id>, resolved server-side against the
+        // live tree. Invalid values resolve to null (normal unfiltered page).
+        $assetCategory = AssetCategorySelection::forRequest($request);
+
+        return view('hardware/index')
+            ->with('company', $company)
+            ->with('assetCategory', $assetCategory);
     }
 
     /**

@@ -43,6 +43,20 @@
 
     @include('partials.theme-mode-tenant-vars')
 
+    {{-- ERS: asset category hierarchy in the sidebar (partials.asset-category-nav) --}}
+    <style>
+        .sidebar-menu .ers-asset-category { position: relative; }
+        .sidebar-menu .ers-asset-category > a { padding-right: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sidebar-menu .ers-asset-category.ers-asset-category-selected > a { font-weight: bold; }
+        .sidebar-menu .ers-asset-category-toggle {
+            position: absolute; right: 4px; top: 3px; width: 22px; height: 22px; padding: 0;
+            border: 0; background: transparent; color: inherit; opacity: 0.8; cursor: pointer;
+        }
+        .sidebar-menu .ers-asset-category-toggle:focus-visible { outline: 1px dotted currentColor; }
+        .sidebar-menu .ers-asset-category-toggle[aria-expanded="true"] > i { transform: rotate(90deg); }
+        .sidebar-menu .ers-asset-category-toggle > i { transition: transform 0.15s; }
+    </style>
+
     {{-- Custom CSS --}}
     @if (($snipeSettings) && ($snipeSettings->custom_css))
         <style>
@@ -401,7 +415,7 @@
                                     <x-icon type="angle-left" class="pull-right fa-fw"/>
                                 </a>
                                 <ul class="treeview-menu">
-                                    <li {!! (!request()->query('status_type') && (request()->is('hardware')) ? ' class="active" aria-current="page"' : '') !!}>
+                                    <li {!! (!request()->query('status_type') && empty($asset_category_selected) && (request()->is('hardware')) ? ' class="active" aria-current="page"' : '') !!}>
                                         <a href="{{ url('hardware') }}">
                                             <x-icon type="circle" class="text-grey fa-fw"/>
                                             {{ trans('general.list_all') }}
@@ -410,6 +424,9 @@
                                             </span>
                                         </a>
                                     </li>
+
+                                    {{-- ERS: live asset category hierarchy --}}
+                                    @include('partials.asset-category-nav')
 
                                     <?php $status_navs = \App\Models\Statuslabel::where('show_in_nav', '=', 1)->withCount('assets as asset_count')->get(); ?>
                                     @if (count($status_navs) > 0)

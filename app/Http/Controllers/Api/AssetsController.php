@@ -29,6 +29,7 @@ use App\Models\LicenseSeat;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\AssetCategorySelection;
 use App\View\Label;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -329,6 +330,15 @@ class AssetsController extends Controller
 
         if ($request->filled('category_id')) {
             $assets->InCategory($request->input('category_id'));
+        }
+
+        // ERS: a single asset category node (?asset_category=<id>). The
+        // categories it covers are resolved server-side from the live tree
+        // (the node itself, or all live assignable descendants of a
+        // navigation group). Invalid values (arrays, lists, text, missing,
+        // deleted or non-asset ids) are ignored, i.e. no category filter.
+        if ($request->has(AssetCategorySelection::PARAM)) {
+            AssetCategorySelection::fromValue($request->input(AssetCategorySelection::PARAM))?->applyTo($assets);
         }
 
         if ($request->filled('location_id')) {

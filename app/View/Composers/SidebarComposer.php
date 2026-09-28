@@ -10,6 +10,9 @@ namespace App\View\Composers;
 
 use App\Models\Asset;
 use App\Models\Setting;
+use App\Services\AssetCategoryNavigation;
+use App\Services\AssetCategorySelection;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
@@ -47,6 +50,24 @@ class SidebarComposer
                 'total_due_and_overdue_for_checkin' => $due_for_checkin + $overdue_for_checkin,
                 'total_due_and_overdue_for_audit' => $due_for_audit + $overdue_for_audit,
             ]);
+        } catch (\Exception $e) {
+            Log::debug($e);
+        }
+
+        // ERS Phase 4: the live asset category hierarchy under Assets. Only
+        // built for users who can see the Assets menu at all; the selected
+        // node is only taken from the Assets list page itself.
+        try {
+            $request = request();
+
+            if (Gate::allows('index', Asset::class)) {
+                $selection = $request->routeIs('hardware.index') ? AssetCategorySelection::forRequest($request) : null;
+
+                $view->with([
+                    'asset_category_nav' => AssetCategoryNavigation::items(AssetCategorySelection::treeForRequest($request), $selection),
+                    'asset_category_selected' => $selection?->id(),
+                ]);
+            }
         } catch (\Exception $e) {
             Log::debug($e);
         }

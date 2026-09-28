@@ -52,6 +52,7 @@ return [
     'audits' => 'Audits',
     'audit_report' => 'Audit Log',
     'assets' => 'Assets',
+    'asset_category_toggle' => 'Show or hide categories in :name',
     'assets_audited' => 'assets audited',
     'assets_checked_in_count' => 'assets checked in',
     'assets_checked_out_count' => 'assets checked out',

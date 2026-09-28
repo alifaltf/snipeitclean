@@ -7,6 +7,8 @@
       $requestOrderNumber = request()->input('order_number');
       $requestCompanyId = request()->input('company_id');
       $requestStatusTypeId = request()->input('status_id');
+      // ERS: validated server-side selection (App\Services\AssetCategorySelection), or null.
+      $assetCategory = $assetCategory ?? null;
   @endphp
 
   @if (is_scalar($requestCompanyId) && ($company instanceof \App\Models\Company))
@@ -35,10 +37,14 @@
       @elseif ($requestStatusType=='byod')
     {{ strtoupper(trans('general.byod')) }}
   @endif
-@else
+@elseif (! $assetCategory)
 {{ trans('general.all') }}
 @endif
+@if ($assetCategory)
+{{ implode(' > ', $assetCategory->pathNames()) }}
+@else
 {{ trans('general.assets') }}
+@endif
 
   @if (Request::has('order_number') && is_scalar($requestOrderNumber))
     : Order #{{ strval($requestOrderNumber) }}
@@ -61,6 +67,7 @@
                     'order_number' => is_scalar($requestOrderNumber) ? strval($requestOrderNumber) : null,
                     'company_id' => is_scalar($requestCompanyId) ? $requestCompanyId : null,
                     'status_id' => is_scalar($requestStatusTypeId) ? $requestStatusTypeId : null,
+                    'asset_category' => $assetCategory?->id(),
                 ))"
                 :status_type="is_scalar($requestStatusType) ? $requestStatusType : null"
             />

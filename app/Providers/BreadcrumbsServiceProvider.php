@@ -23,6 +23,7 @@ use App\Models\PredefinedKit;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\AssetCategorySelection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Tabuna\Breadcrumbs\Breadcrumbs;
@@ -45,15 +46,27 @@ class BreadcrumbsServiceProvider extends ServiceProvider
         /**
          * Asset Breadcrumbs
          */
+        // ERS: when a valid ?asset_category=<id> is selected, its full path
+        // (resolved server-side from the live tree) follows "Assets". Names
+        // are plain text; the breadcrumb view escapes them.
+        $pushAssetCategoryPath = function (Trail $trail): Trail {
+            $selection = AssetCategorySelection::forRequest(request());
+            foreach ($selection?->path ?? [] as $node) {
+                $trail->push($node->name, route('hardware.index', [AssetCategorySelection::PARAM => $node->id]));
+            }
+
+            return $trail;
+        };
+
         if ((request()->is('hardware*')) && (request()->status_type != '')) {
-            Breadcrumbs::for('hardware.index', fn (Trail $trail) => $trail->parent('home', route('home'))
-                ->push(trans('general.assets'), route('hardware.index'))
+            Breadcrumbs::for('hardware.index', fn (Trail $trail) => $pushAssetCategoryPath($trail->parent('home', route('home'))
+                ->push(trans('general.assets'), route('hardware.index')))
                 ->push(trans('general.'.strtolower(e(request()->status_type))), route('hardware.index', ['status_type' => request()->status_type]))
             );
 
         } else {
-            Breadcrumbs::for('hardware.index', fn (Trail $trail) => $trail->parent('home', route('home'))
-                ->push(trans('general.assets'), route('hardware.index'))
+            Breadcrumbs::for('hardware.index', fn (Trail $trail) => $pushAssetCategoryPath($trail->parent('home', route('home'))
+                ->push(trans('general.assets'), route('hardware.index')))
             );
         }
 
