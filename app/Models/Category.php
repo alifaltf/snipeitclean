@@ -359,6 +359,14 @@ class Category extends SnipeModel
     }
 
     /**
+     * ERS Phase 5A: permission-group grants on this (final asset) category.
+     */
+    public function assetCategoryPermissions(): HasMany
+    {
+        return $this->hasMany(AssetCategoryPermission::class, 'category_id');
+    }
+
+    /**
      * True when live child categories still point at this category. Uses a
      * preloaded children_count (withCount('children as children_count'))
      * when present to avoid a query per row in listings.

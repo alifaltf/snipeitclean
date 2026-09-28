@@ -23,6 +23,7 @@ use App\Observers\LocationObserver;
 use App\Observers\MaintenanceObserver;
 use App\Observers\SettingObserver;
 use App\Observers\UserObserver;
+use App\Services\AssetCategoryPermissionService;
 use App\View\Composers\ImpersonationBannerComposer;
 use App\View\Composers\SidebarComposer;
 use Illuminate\Pagination\Paginator;
@@ -101,6 +102,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
+        // ERS Phase 5A: effective asset-category permissions, cached for the
+        // current request/job only.
+        $this->app->scoped(AssetCategoryPermissionService::class);
 
         if ($this->app->environment('local')) {
             $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);

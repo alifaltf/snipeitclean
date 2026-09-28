@@ -108,5 +108,8 @@
 <div class="col-md-12">
     @include ('partials.forms.edit.permissions-base', ['use_inherit' => false])
 </div>
+
+{{-- ERS Phase 5A: Super User only --}}
+@include ('groups.partials.asset-category-permissions')
 @stop
 

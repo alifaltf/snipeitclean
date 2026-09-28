@@ -9,7 +9,9 @@ use App\Exceptions\ItemStillHasAssets;
 use App\Exceptions\ItemStillHasComponents;
 use App\Exceptions\ItemStillHasConsumables;
 use App\Exceptions\ItemStillHasLicenses;
+use App\Models\AssetCategoryPermission;
 use App\Models\Category;
+use App\Services\AssetCategoryPermissionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -72,6 +74,11 @@ class DestroyCategoryAction
         }
 
         Storage::disk('public')->delete('categories'.'/'.$category->image);
+
+        // ERS Phase 5A: grants never outlive a live category.
+        AssetCategoryPermission::query()->where('category_id', $category->getKey())->delete();
+        app(AssetCategoryPermissionService::class)->flush();
+
         $category->delete();
 
         return true;

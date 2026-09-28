@@ -70,24 +70,34 @@ Removing a field from a fieldset preserves existing data. Permanent deletion req
 
 Permissions are configurable through the website and stored in the database.
 
-For every final subcategory, Super Admin can grant:
+### 5.1 Asset Category Permissions
+
+Asset category permissions are assigned only to Snipe-IT permission groups. They are not assigned directly to individual users.
+
+For every final (assignable) asset category, Super Admin can grant a permission group:
 
 - View
 - Create
 - Edit
 - Delete
-- Check Out
-- Check In
-- Audit
-- Import CSV
 
-Permissions can be assigned to groups and individual users.
+A user receives the union of the grants from every permission group they belong to.
 
-A user must pass normal Snipe-IT permission, category permission and organisational-scope checks.
+Existing global Snipe-IT permissions are always the upper bound. A category grant never gives a user an operation that their global Snipe-IT permissions do not allow.
+
+Users who are not Super Admins have no access to a category unless one of their permission groups grants it (default deny).
 
 Super Admin has full access.
 
-New categories default to Super Admin only.
+Navigation groups do not store grants. Access to a navigation group is derived from the final categories beneath it that have been granted.
+
+New final categories receive no grants automatically. Until a Super Admin grants a new category to a permission group, only Super Admins have access to it.
+
+Check Out, Check In, Audit and CSV Import are not category-level permissions in this approved phase. They remain controlled by the existing global Snipe-IT permissions unless category-level control is separately approved later.
+
+### 5.2 Access Checks
+
+A user must pass normal Snipe-IT permission, category permission and organisational-scope checks.
 
 Permissions must apply to the website, direct URLs, search, reports, exports, CSV imports and REST API.
 

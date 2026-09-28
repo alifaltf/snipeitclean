@@ -2,8 +2,10 @@
 
 namespace App\Actions\Categories;
 
+use App\Models\AssetCategoryPermission;
 use App\Models\AssetModel;
 use App\Models\Category;
+use App\Services\AssetCategoryPermissionService;
 use App\Services\AssetCategoryTree;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -101,6 +103,15 @@ final class SaveCategoryHierarchyAction
 
             if (! $category->save()) {
                 throw ValidationException::withMessages($category->getErrors()->toArray());
+            }
+
+            // ERS Phase 5A: grants may only exist on final asset categories.
+            // When a category becomes a navigation group or stops being an
+            // asset category, its grants are removed so they can never
+            // silently reapply if it is converted back later.
+            if ($category->category_type !== 'asset' || $category->is_assignable === false) {
+                AssetCategoryPermission::query()->where('category_id', $category->getKey())->delete();
+                app(AssetCategoryPermissionService::class)->flush();
             }
 
             return $category;

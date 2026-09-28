@@ -183,6 +183,14 @@ class AuthServiceProvider extends ServiceProvider
             return $user->isSuperUser() === true;
         });
 
+        // ERS Phase 5A: only a real Super User may view or change a
+        // permission group's asset category permission matrix. Like the
+        // hierarchy ability above, this does not go through a policy
+        // before() hook that ordinary Admins pass.
+        Gate::define('groups.manage_asset_category_permissions', function ($user) {
+            return $user->isSuperUser() === true;
+        });
+
         // Can the user import CSVs?
         Gate::define('import', function ($user) {
             if ($user->hasAccess('import')) {

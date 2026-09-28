@@ -6,6 +6,7 @@ use App\Models\Traits\Searchable;
 use App\Presenters\GroupPresenter;
 use App\Presenters\Presentable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Gate;
 use Watson\Validating\ValidatingTrait;
@@ -60,6 +61,26 @@ class Group extends SnipeModel
     protected $searchableRelations = [
         'adminuser' => ['first_name', 'last_name', 'display_name'],
     ];
+
+    /**
+     * ERS Phase 5A: asset category grants are removed with the group. The
+     * foreign key cascades too; this keeps behaviour identical on database
+     * connections that do not enforce foreign keys.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (Group $group) {
+            $group->assetCategoryPermissions()->delete();
+        });
+    }
+
+    /**
+     * ERS Phase 5A: this group's grants on final asset categories.
+     */
+    public function assetCategoryPermissions(): HasMany
+    {
+        return $this->hasMany(AssetCategoryPermission::class, 'group_id');
+    }
 
     public function isDeletable()
     {

@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Groups\SaveGroupAssetCategoryPermissionsAction;
 use App\Actions\Permissions\NormalizePermissionsPayloadAction;
 use App\Helpers\Helper;
 use App\Models\Group;
 use App\Models\User;
+use App\Services\AssetCategoryTree;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 /**
  * This controller handles all actions related to User Groups for
@@ -64,7 +69,8 @@ class GroupsController extends Controller
             ->with('group', $group)
             ->with('associated_users', collect())
             ->with('unselected_users', $users)
-            ->with('all_users_count', $users_count);
+            ->with('all_users_count', $users_count)
+            ->with('assetCategoryMatrix', $this->assetCategoryMatrix($group));
     }
 
     /**
@@ -77,6 +83,13 @@ class GroupsController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // ERS: validate the asset category matrix before anything is written.
+        try {
+            $assetCategoryMatrix = SaveGroupAssetCategoryPermissionsAction::fromRequest($request);
+        } catch (ValidationException $e) {
+            return redirect()->back()->withInput()->withErrors($e->errors());
+        }
+
         // create a new group instance
         $group = new Group;
         $group->name = $request->input('name');
@@ -89,13 +102,30 @@ class GroupsController extends Controller
         $group->created_by = auth()->id();
         $group->notes = $request->input('notes');
 
-        if ($group->save()) {
+        // ERS: the group, its members and its asset category grants are
+        // saved atomically.
+        try {
+            $saved = DB::transaction(function () use ($group, $request, $assetCategoryMatrix) {
+                if (! $group->save()) {
+                    return false;
+                }
 
-            if ($request->filled('users_to_sync')) {
-                $associated_users = explode(',', $request->input('users_to_sync'));
-                $group->users()->sync($associated_users);
-            }
+                if ($request->filled('users_to_sync')) {
+                    $associated_users = explode(',', $request->input('users_to_sync'));
+                    $group->users()->sync($associated_users);
+                }
 
+                if ($assetCategoryMatrix !== null) {
+                    SaveGroupAssetCategoryPermissionsAction::replace($group, $assetCategoryMatrix);
+                }
+
+                return true;
+            });
+        } catch (ValidationException $e) {
+            return redirect()->back()->withInput()->withErrors($e->errors());
+        }
+
+        if ($saved) {
             return redirect()->route('groups.index')->with('success', trans('admin/groups/message.success.create'));
         }
 
@@ -149,7 +179,8 @@ class GroupsController extends Controller
         return view('groups.edit', compact('group', 'permissions', 'selected_array', 'groupPermissions'))
             ->with('associated_users', $associated_users)
             ->with('unselected_users', $unselected_users)
-            ->with('all_users_count', $users_count);
+            ->with('all_users_count', $users_count)
+            ->with('assetCategoryMatrix', $this->assetCategoryMatrix($group));
     }
 
     /**
@@ -165,6 +196,13 @@ class GroupsController extends Controller
      */
     public function update(Request $request, Group $group): RedirectResponse
     {
+        // ERS: validate the asset category matrix before anything is written.
+        try {
+            $assetCategoryMatrix = SaveGroupAssetCategoryPermissionsAction::fromRequest($request);
+        } catch (ValidationException $e) {
+            return redirect()->back()->withInput()->withErrors($e->errors());
+        }
+
         $group->name = $request->input('name');
         $group->notes = $request->input('notes');
 
@@ -178,13 +216,30 @@ class GroupsController extends Controller
         }
 
         if (! config('app.lock_passwords')) {
-            if ($group->save()) {
+            // ERS: the group, its members and its asset category grants are
+            // saved atomically.
+            try {
+                $saved = DB::transaction(function () use ($group, $request, $assetCategoryMatrix) {
+                    if (! $group->save()) {
+                        return false;
+                    }
 
-                if ($request->has('users_to_sync')) {
-                    $associated_users = explode(',', $request->input('users_to_sync'));
-                    $group->users()->sync($associated_users);
-                }
+                    if ($request->has('users_to_sync')) {
+                        $associated_users = explode(',', $request->input('users_to_sync'));
+                        $group->users()->sync($associated_users);
+                    }
 
+                    if ($assetCategoryMatrix !== null) {
+                        SaveGroupAssetCategoryPermissionsAction::replace($group, $assetCategoryMatrix);
+                    }
+
+                    return true;
+                });
+            } catch (ValidationException $e) {
+                return redirect()->back()->withInput()->withErrors($e->errors());
+            }
+
+            if ($saved) {
                 return redirect()->route('groups.index')->with('success', trans('admin/groups/message.success.update'));
             }
 
@@ -238,5 +293,55 @@ class GroupsController extends Controller
     public function show(Group $group): View|RedirectResponse
     {
         return view('groups/view', compact('group'));
+    }
+
+    /**
+     * ERS Phase 5A: data for the asset category permission matrix, or null
+     * when the current user may not see it (non-Super Users).
+     *
+     * Rows come from the live asset category tree (tree order, depth-limited,
+     * nothing hard-coded). Final categories carry checkboxes; navigation
+     * groups are shown only when they have final descendants and only get
+     * bulk toggles. Selected cells come from old input after a failed save,
+     * otherwise from the group's stored grants.
+     *
+     * @return array{rows: list<array{id: int, name: string, depth: int, group: bool, ancestors: list<int>}>, selected: array<int, array<string, bool>>}|null
+     */
+    private function assetCategoryMatrix(Group $group): ?array
+    {
+        if (! Gate::allows(SaveGroupAssetCategoryPermissionsAction::ABILITY)) {
+            return null;
+        }
+
+        $tree = AssetCategoryTree::load();
+        $rows = [];
+        foreach ($tree->flatten() as $node) {
+            if ($node->isNavigationOnly() && $tree->assignableIdsWithin($node->id) === []) {
+                continue;
+            }
+            $rows[] = [
+                'id' => $node->id,
+                'name' => $node->name,
+                'depth' => $node->depth,
+                'group' => $node->isNavigationOnly(),
+                'ancestors' => array_map(fn ($ancestor) => $ancestor->id, $tree->ancestors($node->id)),
+            ];
+        }
+
+        if (session()->hasOldInput(SaveGroupAssetCategoryPermissionsAction::MARKER)) {
+            $old = old(SaveGroupAssetCategoryPermissionsAction::INPUT, []);
+            $selected = [];
+            foreach (is_array($old) ? $old : [] as $categoryId => $operations) {
+                foreach (is_array($operations) ? $operations : [] as $operation => $value) {
+                    if ($value === '1') {
+                        $selected[(int) $categoryId][(string) $operation] = true;
+                    }
+                }
+            }
+        } else {
+            $selected = SaveGroupAssetCategoryPermissionsAction::currentMatrix($group);
+        }
+
+        return ['rows' => $rows, 'selected' => $selected];
     }
 }
