@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\AssetModels\BulkUpdateAssetModelsAction;
 use App\Helpers\Helper;
 use App\Models\AssetModel;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class BulkAssetModelsController extends Controller
 {
@@ -102,7 +104,16 @@ class BulkAssetModelsController extends Controller
         }
 
         if (count($update_array) > 0) {
-            AssetModel::whereIn('id', $models_raw_array)->update($update_array);
+            // ERS: validates category_id (live, asset, final) before the raw
+            // UPDATE, in one transaction; a failure updates zero models.
+            try {
+                BulkUpdateAssetModelsAction::run((array) $models_raw_array, $update_array);
+            } catch (ValidationException $e) {
+                return redirect()->route('models.index')
+                    ->withInput()
+                    ->withErrors($e->errors())
+                    ->with('error', trans('admin/models/message.bulkedit.invalid_category', ['message' => collect($e->errors())->flatten()->first()]));
+            }
 
             return redirect()->route('models.index')
                 ->with('success', trans_choice('admin/models/message.bulkedit.success', count($models_raw_array), ['model_count' => count($models_raw_array)]));

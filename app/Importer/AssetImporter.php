@@ -48,6 +48,7 @@ class AssetImporter extends ItemImporter
         // See sanitizeItemForStoring override below for the matching
         // pass-through sanitize.
         $this->item = [];
+        $this->rowCategoryRejected = false;
 
         // Shared lookup fields. Present-and-empty clears the FK; absent
         // preserves it; present-and-set resolves and stores the id. Some
@@ -69,6 +70,15 @@ class AssetImporter extends ItemImporter
             if ($this->csvRowHas($row, $csvKey)) {
                 $value = $this->findCsvMatch($row, $csvKey);
                 $this->item[$itemKey] = ($value !== '') ? $resolver($value) : null;
+            }
+
+            // ERS: a category that is an asset navigation group rejects the
+            // whole row before any other lookup can auto-create records (the
+            // error was recorded by createOrFetchCategory).
+            if ($this->rowCategoryRejected) {
+                $this->recordErrored();
+
+                return;
             }
         }
 

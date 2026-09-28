@@ -31,6 +31,7 @@ class AssetModelImporter extends ItemImporter
         // clears the DB value. The base sanitize's reject-empty pass is
         // suppressed via the sanitizeItemForStoring override below.
         $this->item = [];
+        $this->rowCategoryRejected = false;
 
         $this->setItemFromCsvIfPresent($row, 'name');
         $this->setItemFromCsvIfPresent($row, 'model_number');
@@ -50,6 +51,15 @@ class AssetModelImporter extends ItemImporter
             if ($this->csvRowHas($row, $csvKey)) {
                 $value = $this->findCsvMatch($row, $csvKey);
                 $this->item[$itemKey] = ($value !== '') ? $resolver($value) : null;
+            }
+
+            // ERS: a category that is an asset navigation group rejects the
+            // whole row before any other lookup can auto-create records (the
+            // error was recorded by createOrFetchCategory).
+            if ($this->rowCategoryRejected) {
+                $this->recordErrored();
+
+                return;
             }
         }
 

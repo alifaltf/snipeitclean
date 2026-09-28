@@ -16,6 +16,13 @@ class ItemImporter extends Importer
 {
     protected $item;
 
+    /**
+     * ERS: set when the current row's category resolved to an asset
+     * navigation group. The row is rejected with a translated error instead
+     * of assigning a model to the group. Reset at the start of every row.
+     */
+    protected bool $rowCategoryRejected = false;
+
     public function __construct($filename)
     {
         parent::__construct($filename);
@@ -31,6 +38,7 @@ class ItemImporter extends Importer
 
         // Need to reset this between iterations or we'll have stale data.
         $this->item = [];
+        $this->rowCategoryRejected = false;
 
         $item_category = $this->findCsvMatch($row, 'category');
         if ($this->shouldUpdateField($item_category)) {
@@ -336,6 +344,12 @@ class ItemImporter extends Importer
             return;
         }
 
+        // ERS: never create, update or return a model for a row whose
+        // category is a navigation group.
+        if ($this->rowCategoryRejected) {
+            return null;
+        }
+
         if ((empty($asset_model_name)) && (! empty($asset_modelNumber))) {
             $asset_model_name = $asset_modelNumber;
         } elseif ((empty($asset_model_name)) && (empty($asset_modelNumber))) {
@@ -388,6 +402,9 @@ class ItemImporter extends Importer
         $item['model_number'] = $asset_modelNumber;
         $item['notes'] = $this->findCsvMatch($row, 'model_notes');
         $item['category_id'] = $this->createOrFetchCategory($asset_model_category);
+        if ($this->rowCategoryRejected) {
+            return null;
+        }
 
         $asset_model->fill($item);
         $item = null;
@@ -433,15 +450,30 @@ class ItemImporter extends Importer
         $category = Category::where(['name' => $asset_category, 'category_type' => $item_type])->first();
 
         if ($category) {
+            // ERS: an asset navigation group can never be used for an asset
+            // model. Reject the row with a clear error; do not assign the
+            // model to the group and do not convert the group.
+            if ($item_type === 'asset' && $category->isNavigationOnly()) {
+                $this->rowCategoryRejected = true;
+                $this->log('Category '.$category->name.' is a navigation group and cannot be assigned to asset models');
+                $this->addErrorToBag($category, 'category', trans('admin/models/message.import_navigation_category', ['name' => $category->name]));
+
+                return null;
+            }
+
             $this->log('A matching category: '.$category->name.' already exists');
 
             return $category->id;
         }
 
+        // Auto-created categories are always root-level final/assignable
+        // categories (ERS hierarchy defaults, set explicitly).
         $category = new Category;
         $category->created_by = $this->created_by;
         $category->name = $asset_category;
         $category->category_type = $item_type;
+        $category->parent_id = null;
+        $category->is_assignable = true;
 
         if ($category->save()) {
             $this->log('Category '.$asset_category.' was created');

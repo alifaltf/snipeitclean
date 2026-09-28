@@ -9,6 +9,16 @@ return [
     'assoc_users' => 'This model is currently associated with one or more assets and cannot be deleted. Please delete the assets, and then try deleting again. ',
     'invalid_category_type' => 'This category must be an asset category.',
 
+    // ERS: an asset model may only use a live, final/assignable asset category.
+    'category_rule' => [
+        'invalid' => 'The selected category is invalid.',
+        'missing' => 'The selected category does not exist.',
+        'deleted' => 'The selected category has been deleted.',
+        'not_asset' => 'This category must be an asset category.',
+        'navigation' => 'The selected category is a navigation group. Asset models can only use final/assignable asset categories.',
+    ],
+    'import_navigation_category' => 'The category ":name" is a navigation group and cannot be assigned to asset models. Use a final/assignable category instead.',
+
     'create' => [
         'error' => 'Model was not created, please try again.',
         'success' => 'Model created successfully.',
@@ -33,6 +43,7 @@ return [
 
     'bulkedit' => [
         'error' => 'No fields were changed, so nothing was updated.',
+        'invalid_category' => 'No models were updated: :message',
         'success' => 'Model successfully updated. |:model_count models successfully updated.',
         'warn' => 'You are about to update the properties of the following model:|You are about to edit the properties of the following :model_count models:',
 

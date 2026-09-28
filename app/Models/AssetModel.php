@@ -9,10 +9,12 @@ use App\Models\Traits\Requestable;
 use App\Models\Traits\Searchable;
 use App\Presenters\AssetModelPresenter;
 use App\Presenters\Presentable;
+use App\Rules\AssignableAssetCategory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Watson\Validating\ValidatingTrait;
@@ -52,10 +54,40 @@ class AssetModel extends SnipeModel
         'name' => 'string|required|min:1|max:255|two_column_unique_undeleted:model_number',
         'model_number' => 'string|max:255|nullable|two_column_unique_undeleted:name',
         'min_amt' => 'integer|min:0|nullable',
-        'category_id' => 'required|integer|exists:categories,id',
+        // ERS: the full category rule (live, asset, final/assignable) is
+        // added as a rule object in getRules(); property defaults cannot hold
+        // objects.
+        'category_id' => 'required',
         'manufacturer_id' => 'integer|exists:manufacturers,id|nullable',
         'eol' => 'integer:min:0|max:240|nullable',
     ];
+
+    /**
+     * Validation rules used by the ValidatingTrait on every save and restore.
+     *
+     * ERS Phase 3: an Asset Model may only use a live, final/assignable asset
+     * category. This applies to every Eloquent write path (web, API, clone,
+     * restore, importer) because they all save through this model.
+     */
+    public function getRules()
+    {
+        $rules = isset($this->rules) ? $this->rules : [];
+        $rules['category_id'] = ['bail', 'required', new AssignableAssetCategory];
+
+        return $rules;
+    }
+
+    /**
+     * ERS Phase 3: validation and the write run in one transaction, so the
+     * shared lock AssignableAssetCategory takes on the category row is held
+     * until the model row is written. Lock order is always category row ->
+     * models row, matching the hierarchy action (category rows first).
+     * restore() and update() both go through save().
+     */
+    public function save(array $options = [])
+    {
+        return DB::transaction(fn () => parent::save($options));
+    }
 
     /**
      * The attributes that are mass assignable.

@@ -5,6 +5,7 @@ namespace App\Actions\Categories;
 use App\Models\AssetModel;
 use App\Models\Category;
 use App\Services\AssetCategoryTree;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -306,13 +307,35 @@ final class SaveCategoryHierarchyAction
         return Category::query()->where('parent_id', $id)->count();
     }
 
+    /**
+     * Concurrency (ERS Phase 3): every Asset Model category write share-locks
+     * the target category row (App\Rules\AssignableAssetCategory) inside the
+     * transaction that writes the model. This action has already taken
+     * exclusive locks on all asset category rows before this count runs, so
+     * either a concurrent model write finished first (and is counted here)
+     * or it is blocked until this transaction commits and then sees the
+     * category's new state. The count is a LOCKING read so it always sees the
+     * latest committed rows, even when this action runs inside a longer outer
+     * transaction whose snapshot is older (the CSV importer). Both sides lock
+     * category rows before model rows, so they cannot deadlock on each other.
+     * This count only runs for conversions and type changes.
+     */
     private function modelCountIncludingDeleted(?int $id): int
     {
         if ($id === null) {
             return 0;
         }
 
-        return AssetModel::withTrashed()->where('category_id', $id)->count();
+        return self::modelReferenceQuery($id)->count();
+    }
+
+    /**
+     * Asset models (including soft-deleted ones) that reference a category,
+     * read with a shared lock. Public so the locking strategy can be tested.
+     */
+    public static function modelReferenceQuery(int $categoryId): Builder
+    {
+        return AssetModel::withTrashed()->where('category_id', $categoryId)->sharedLock();
     }
 
     /**

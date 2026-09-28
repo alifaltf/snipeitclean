@@ -295,7 +295,17 @@ class CategoriesController extends Controller
             $categories = $categories->where('name', 'LIKE', '%'.$request->input('search').'%');
         }
 
-        $categories = $categories->where('category_type', $category_type)->orderBy('name', 'ASC')->paginate(50);
+        $categories = $categories->where('category_type', $category_type);
+
+        // ERS: asset category pickers (Asset Model create/edit/clone, bulk
+        // edit, the new-model modal) must only offer final/assignable
+        // categories. Navigation groups are never selectable here. Other
+        // category types are unchanged.
+        if ($category_type === 'asset') {
+            $categories = $categories->where('is_assignable', true);
+        }
+
+        $categories = $categories->orderBy('name', 'ASC')->paginate(50);
 
         // Loop through and set some custom properties for the transformer to use.
         // This lets us have more flexibility in special cases like assets, where

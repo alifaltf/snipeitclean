@@ -2,8 +2,10 @@
 
 namespace App\Importer;
 
+use App\Actions\Categories\SaveCategoryHierarchyAction;
 use App\Models\Category;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 /**
  * When we are importing users via an Asset/etc import, we use createOrFetchUser() in
@@ -109,29 +111,43 @@ class CategoryImporter extends ItemImporter
 
         if ($editingCategory) {
             Log::debug('Updating existing category');
-            $category->update($this->sanitizeItemForUpdating($category));
+            $category->fill($this->sanitizeItemForUpdating($category));
         } else {
             Log::debug('Creating category');
             $category->fill($this->sanitizeItemForStoring($category));
         }
 
-        if ($category->save()) {
-            $this->log('Category '.$category->name.' created or updated from CSV import');
-            if ($editingCategory) {
-                $this->recordUpdated();
-            } else {
-                $this->recordCreated();
+        // ERS: save through the central category write action so imported
+        // category_type changes obey the same rules as the web/API (no type
+        // change for hierarchy members or categories that models/items still
+        // use). The importer never writes hierarchy fields.
+        try {
+            SaveCategoryHierarchyAction::run($category);
+        } catch (ValidationException $e) {
+            Log::debug($e->errors());
+            $this->recordErrored();
+
+            if ($category->getErrors()->isNotEmpty()) {
+                $this->logError($category, 'Category "'.$name.'"');
+
+                return $category->errors;
             }
 
-            return $category;
+            foreach ($e->errors() as $field => $messages) {
+                $this->addErrorToBag($category, $field, $messages[0]);
+            }
 
-        } else {
-            Log::debug($category->getErrors());
-            $this->recordErrored();
-            $this->logError($category, 'Category "'.$name.'"');
-
-            return $category->errors;
+            return $e->errors();
         }
+
+        $this->log('Category '.$category->name.' created or updated from CSV import');
+        if ($editingCategory) {
+            $this->recordUpdated();
+        } else {
+            $this->recordCreated();
+        }
+
+        return $category;
 
     }
 }
