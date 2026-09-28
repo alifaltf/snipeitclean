@@ -8,6 +8,8 @@ use App\Models\Traits\Searchable;
 use App\Presenters\CategoryPresenter;
 use App\Presenters\Presentable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Query\Builder;
@@ -39,6 +41,9 @@ class Category extends SnipeModel
     protected $casts = [
         'alert_on_response' => 'boolean',
         'created_by' => 'integer',
+        'parent_id' => 'integer',
+        'is_assignable' => 'boolean',
+        'sort_order' => 'integer',
     ];
 
     /**
@@ -50,6 +55,13 @@ class Category extends SnipeModel
         'require_acceptance' => 'boolean',
         'use_default_eula' => 'boolean',
         'category_type' => 'required|in:asset,accessory,consumable,component,license',
+        // Hierarchy columns (ERS Feature 1). Only basic type checks live here;
+        // structural invariants (parent must be a live asset navigation node,
+        // no cycles, max depth, conversion guards) are enforced by the
+        // hierarchy write action, not by mass assignment.
+        'parent_id' => 'nullable|integer|min:1',
+        'is_assignable' => 'boolean',
+        'sort_order' => 'integer|min:0',
     ];
 
     /**
@@ -66,6 +78,11 @@ class Category extends SnipeModel
 
     /**
      * The attributes that are mass assignable.
+     *
+     * NOTE: the hierarchy columns (parent_id, is_assignable, sort_order) are
+     * intentionally NOT mass assignable. Both category controllers call
+     * fill($request->all()); structural changes must only happen through the
+     * dedicated, Super-Admin-gated hierarchy action.
      *
      * @var array
      */
@@ -282,6 +299,95 @@ class Category extends SnipeModel
     public function models()
     {
         return $this->hasMany(AssetModel::class, 'category_id');
+    }
+
+    /**
+     * -----------------------------------------------
+     * BEGIN HIERARCHY (ERS Feature 1)
+     * -----------------------------------------------
+     *
+     * Asset categories form an adjacency-list tree via parent_id. Nodes with
+     * is_assignable = false are navigation-only groups; nodes with
+     * is_assignable = true are final categories that asset models may use.
+     * For whole-tree reads use App\Services\AssetCategoryTree, which loads
+     * every asset category in a single query and tolerates malformed data.
+     **/
+
+    /**
+     * The direct parent node. Soft-deleted parents resolve to null.
+     */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    /**
+     * Direct children (live only), in display order.
+     */
+    public function children(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->orderBy('id');
+    }
+
+    /**
+     * True when this is an asset navigation group (never holds asset models).
+     *
+     * Non-asset categories are never navigation nodes, whatever their flag
+     * says, so existing accessory/consumable/component/license behaviour is
+     * unchanged. A missing value (e.g. an unsaved model) means assignable,
+     * matching the column default.
+     */
+    public function isNavigationOnly(): bool
+    {
+        return $this->category_type === 'asset' && $this->is_assignable === false;
+    }
+
+    /**
+     * True when asset models may be placed in this category: a live asset
+     * category that is not a navigation group.
+     */
+    public function acceptsAssetModels(): bool
+    {
+        return $this->category_type === 'asset'
+            && ! $this->isNavigationOnly()
+            && ! $this->trashed();
+    }
+
+    /**
+     * Query scope: asset-type categories only (the hierarchy lives here).
+     */
+    public function scopeAssetCategories($query)
+    {
+        return $query->where($this->qualifyColumn('category_type'), '=', 'asset');
+    }
+
+    /**
+     * Query scope: categories that may hold items. Rows created before the
+     * hierarchy migration have is_assignable = true via the column default.
+     */
+    public function scopeAssignable($query)
+    {
+        return $query->where($this->qualifyColumn('is_assignable'), '=', true);
+    }
+
+    /**
+     * Query scope: asset navigation groups.
+     */
+    public function scopeNavigationOnly($query)
+    {
+        return $query->where($this->qualifyColumn('category_type'), '=', 'asset')
+            ->where($this->qualifyColumn('is_assignable'), '=', false);
+    }
+
+    /**
+     * Query scope: top-level nodes (no stored parent).
+     */
+    public function scopeRootNodes($query)
+    {
+        return $query->whereNull($this->qualifyColumn('parent_id'));
     }
 
     /**

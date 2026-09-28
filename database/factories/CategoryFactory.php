@@ -243,4 +243,44 @@ class CategoryFactory extends Factory
             'eula_text' => '',
         ]);
     }
+
+    /**
+     * An asset navigation group (ERS hierarchy): cannot hold asset models.
+     *
+     * usage: Category::factory()->navigationGroup()->create();
+     */
+    public function navigationGroup()
+    {
+        return $this->state([
+            'category_type' => 'asset',
+            'is_assignable' => false,
+        ]);
+    }
+
+    /**
+     * A final (assignable) asset category (ERS hierarchy).
+     *
+     * usage: Category::factory()->assignableAssetCategory()->create();
+     */
+    public function assignableAssetCategory()
+    {
+        return $this->state([
+            'category_type' => 'asset',
+            'is_assignable' => true,
+        ]);
+    }
+
+    /**
+     * Place the category under an existing parent node. Test/seed helper
+     * only: it does not validate hierarchy invariants.
+     *
+     * usage: Category::factory()->childOf($group)->create();
+     */
+    public function childOf(Category $parent)
+    {
+        return $this->state([
+            'category_type' => 'asset',
+            'parent_id' => $parent->id,
+        ]);
+    }
 }
