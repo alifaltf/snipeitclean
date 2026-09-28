@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Actions\Categories\DestroyCategoryAction;
+use App\Actions\Categories\SaveCategoryHierarchyAction;
+use App\Exceptions\CategoryStillHasChildCategories;
 use App\Exceptions\ItemStillHasChildren;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
@@ -15,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class CategoriesController extends Controller
 {
@@ -58,15 +61,18 @@ class CategoriesController extends Controller
             'eula_text',
             'id',
             'image',
+            'is_assignable',
             'name',
             'notes',
+            'parent_id',
             'require_acceptance',
+            'sort_order',
             'tag_color',
             'updated_at',
             'use_default_eula',
         ])
-            ->with('adminuser')
-            ->withCount('accessories as accessories_count', 'consumables as consumables_count', 'components as components_count', 'licenses as licenses_count', 'models as models_count');
+            ->with('adminuser', 'parent')
+            ->withCount('accessories as accessories_count', 'consumables as consumables_count', 'components as components_count', 'licenses as licenses_count', 'models as models_count', 'children as children_count');
 
         // This invokes the Searchable model trait scopeTextSearch and will handle input by search or by advanced search filter
         if ($request->filled('filter') || $request->filled('search')) {
@@ -158,17 +164,24 @@ class CategoriesController extends Controller
     public function store(ImageUploadRequest $request): JsonResponse
     {
         $this->authorize('create', Category::class);
+
+        // Hierarchy fields from anyone but a Super User are a 403, never ignored.
+        $hierarchyInput = SaveCategoryHierarchyAction::inputFrom($request);
+        SaveCategoryHierarchyAction::authorizeInput($hierarchyInput);
+
         $category = new Category;
         $category->fill($request->all());
         $category->created_by = auth()->id();
         $category->category_type = strtolower($request->input('category_type'));
         $category = $request->handleImages($category);
 
-        if ($category->save()) {
-            return response()->json(Helper::formatStandardApiResponse('success', $category, trans('admin/categories/message.create.success')));
+        try {
+            SaveCategoryHierarchyAction::run($category, $hierarchyInput);
+        } catch (ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()));
         }
 
-        return response()->json(Helper::formatStandardApiResponse('error', null, $category->getErrors()));
+        return response()->json(Helper::formatStandardApiResponse('success', $category, trans('admin/categories/message.create.success')));
 
     }
 
@@ -184,7 +197,7 @@ class CategoriesController extends Controller
     public function show($id): array
     {
         $this->authorize('view', Category::class);
-        $category = Category::withCount('assets as assets_count', 'accessories as accessories_count', 'consumables as consumables_count', 'components as components_count', 'licenses as licenses_count')->findOrFail($id);
+        $category = Category::with('parent')->withCount('assets as assets_count', 'accessories as accessories_count', 'consumables as consumables_count', 'components as components_count', 'licenses as licenses_count', 'children as children_count')->findOrFail($id);
 
         return (new CategoriesTransformer)->transformCategory($category);
 
@@ -205,6 +218,10 @@ class CategoriesController extends Controller
         $this->authorize('update', Category::class);
         $category = Category::findOrFail($id);
 
+        // Hierarchy fields from anyone but a Super User are a 403, never ignored.
+        $hierarchyInput = SaveCategoryHierarchyAction::inputFrom($request);
+        SaveCategoryHierarchyAction::authorizeInput($hierarchyInput);
+
         // Don't allow the user to change the category_type once it's been created
         if (($request->filled('category_type')) && ($category->category_type != $request->input('category_type'))) {
             return response()->json(
@@ -214,11 +231,13 @@ class CategoriesController extends Controller
         $category->fill($request->all());
         $category = $request->handleImages($category);
 
-        if ($category->save()) {
-            return response()->json(Helper::formatStandardApiResponse('success', $category, trans('admin/categories/message.update.success')));
+        try {
+            SaveCategoryHierarchyAction::run($category, $hierarchyInput);
+        } catch (ValidationException $e) {
+            return response()->json(Helper::formatStandardApiResponse('error', null, $e->errors()));
         }
 
-        return response()->json(Helper::formatStandardApiResponse('error', null, $category->getErrors()));
+        return response()->json(Helper::formatStandardApiResponse('success', $category, trans('admin/categories/message.update.success')));
     }
 
     /**
@@ -236,6 +255,10 @@ class CategoriesController extends Controller
         $this->authorize('delete', Category::class);
         try {
             DestroyCategoryAction::run(category: $category);
+        } catch (CategoryStillHasChildCategories $e) {
+            return response()->json(
+                Helper::formatStandardApiResponse('error', null, trans('admin/categories/message.delete.has_child_categories'))
+            );
         } catch (ItemStillHasChildren $e) {
             return response()->json(
                 Helper::formatStandardApiResponse('error', null, trans('general.bulk_delete_associations.general_assoc_warning', ['asset_type' => $category->category_type]))

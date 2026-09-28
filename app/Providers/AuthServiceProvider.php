@@ -173,6 +173,16 @@ class AuthServiceProvider extends ServiceProvider
             }
         });
 
+        // ERS: only a real Super User may change the asset category hierarchy
+        // (parent_id, is_assignable, sort_order). This deliberately does NOT go
+        // through CategoryPolicy, whose before() lets ordinary Admins through,
+        // and it does not accept categories.create/edit. Super Users also pass
+        // via Gate::before() above; the explicit check keeps this ability
+        // closed even if that hook changes.
+        Gate::define('categories.manage_hierarchy', function ($user) {
+            return $user->isSuperUser() === true;
+        });
+
         // Can the user import CSVs?
         Gate::define('import', function ($user) {
             if ($user->hasAccess('import')) {

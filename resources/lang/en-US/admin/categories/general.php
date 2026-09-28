@@ -33,4 +33,18 @@ return [
     'import_category_type' => 'Category Type',
     'import_alert_on_response' => 'Alert on Response',
 
+    // ERS asset category hierarchy
+    'hierarchy' => 'Asset Hierarchy',
+    'hierarchy_help' => 'Organise asset categories into navigation groups and final categories. Only Super Users can change the hierarchy.',
+    'node_role' => 'Node Role',
+    'node_role_navigation' => 'Navigation group',
+    'node_role_final' => 'Final/assignable category',
+    'node_role_help' => 'Navigation groups only organise the hierarchy and cannot be assigned to asset models. Asset models can only use final/assignable categories.',
+    'parent_group' => 'Parent Navigation Group',
+    'parent_group_none' => 'None (top level)',
+    'parent_group_help' => 'Only navigation groups can be parents. This category and its descendants are not listed.',
+    'sort_order' => 'Sort Order',
+    'sort_order_help' => 'Lower numbers are shown first among categories with the same parent.',
+    'navigation_group' => 'Navigation group',
+
 ];

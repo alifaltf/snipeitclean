@@ -3,12 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Categories\DestroyCategoryAction;
+use App\Actions\Categories\SaveCategoryHierarchyAction;
+use App\Exceptions\CategoryStillHasChildCategories;
 use App\Exceptions\ItemStillHasChildren;
 use App\Helpers\Helper;
 use App\Http\Requests\ImageUploadRequest;
 use App\Models\Category;
+use App\Services\AssetCategoryTree;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 /**
  * This class controls all actions related to Categories for
@@ -51,7 +56,8 @@ class CategoriesController extends Controller
         $this->authorize('create', Category::class);
 
         return view('categories/edit')->with('item', new Category)
-            ->with('category_types', Helper::categoryTypeList());
+            ->with('category_types', Helper::categoryTypeList())
+            ->with('hierarchy_parent_options', $this->hierarchyParentOptions(null));
     }
 
     /**
@@ -65,6 +71,11 @@ class CategoriesController extends Controller
     public function store(ImageUploadRequest $request): RedirectResponse
     {
         $this->authorize('create', Category::class);
+
+        // Hierarchy fields from anyone but a Super User are a 403, never ignored.
+        $hierarchyInput = SaveCategoryHierarchyAction::inputFrom($request);
+        SaveCategoryHierarchyAction::authorizeInput($hierarchyInput);
+
         $category = new Category;
         $category->name = $request->input('name');
         $category->category_type = $request->input('category_type');
@@ -78,11 +89,14 @@ class CategoriesController extends Controller
         $category->created_by = auth()->id();
 
         $category = $request->handleImages($category);
-        if ($category->save()) {
-            return redirect()->route('categories.index')->with('success', trans('admin/categories/message.create.success'));
+
+        try {
+            SaveCategoryHierarchyAction::run($category, $hierarchyInput);
+        } catch (ValidationException $e) {
+            return redirect()->back()->withInput()->withErrors($e->errors());
         }
 
-        return redirect()->back()->withInput()->withErrors($category->getErrors());
+        return redirect()->route('categories.index')->with('success', trans('admin/categories/message.create.success'));
     }
 
     /**
@@ -101,7 +115,8 @@ class CategoriesController extends Controller
         $this->authorize('update', Category::class);
 
         return view('categories/edit')->with('item', $category)
-            ->with('category_types', Helper::categoryTypeList());
+            ->with('category_types', Helper::categoryTypeList())
+            ->with('hierarchy_parent_options', $this->hierarchyParentOptions($category));
     }
 
     /**
@@ -118,6 +133,11 @@ class CategoriesController extends Controller
     public function update(ImageUploadRequest $request, Category $category): RedirectResponse
     {
         $this->authorize('update', Category::class);
+
+        // Hierarchy fields from anyone but a Super User are a 403, never ignored.
+        $hierarchyInput = SaveCategoryHierarchyAction::inputFrom($request);
+        SaveCategoryHierarchyAction::authorizeInput($hierarchyInput);
+
         $category->name = $request->input('name');
 
         // Don't allow the user to change the category_type once it's been created
@@ -139,13 +159,16 @@ class CategoriesController extends Controller
 
         $category = $request->handleImages($category);
 
-        if ($category->save()) {
-            // Redirect to the new category page
-            return redirect()->route('categories.index')->with('success', trans('admin/categories/message.update.success'));
+        try {
+            // Validates hierarchy and category_type changes against the
+            // database and saves everything in one transaction.
+            SaveCategoryHierarchyAction::run($category, $hierarchyInput);
+        } catch (ValidationException $e) {
+            // The given data did not pass validation
+            return redirect()->back()->withInput()->withErrors($e->errors());
         }
 
-        // The given data did not pass validation
-        return redirect()->back()->withInput()->withErrors($category->getErrors());
+        return redirect()->route('categories.index')->with('success', trans('admin/categories/message.update.success'));
     }
 
     /**
@@ -162,6 +185,8 @@ class CategoriesController extends Controller
         $this->authorize('delete', Category::class);
         try {
             DestroyCategoryAction::run($category);
+        } catch (CategoryStillHasChildCategories $e) {
+            return redirect()->route('categories.index')->with('error', trans('admin/categories/message.delete.has_child_categories'));
         } catch (ItemStillHasChildren $e) {
             return redirect()->route('categories.index')->with('error', trans('general.bulk_delete_associations.general_assoc_warning', ['item' => trans('general.category')]));
         } catch (\Exception $e) {
@@ -203,5 +228,37 @@ class CategoriesController extends Controller
         return view('categories/view', compact('category'))
             ->with('category_type', $category_type)
             ->with('category_type_route', $category_type_route);
+    }
+
+    /**
+     * Parent choices for the hierarchy controls: every live asset navigation
+     * group, labelled with its full path, loaded from the database. On edit
+     * the category itself and all of its descendants are excluded. Only
+     * built for Super Users; everyone else gets an empty list and never
+     * sees the controls.
+     *
+     * @return array<int, string> id => "Group > Sub group"
+     */
+    private function hierarchyParentOptions(?Category $category): array
+    {
+        if (! Gate::allows(SaveCategoryHierarchyAction::ABILITY)) {
+            return [];
+        }
+
+        $tree = AssetCategoryTree::load();
+        $excluded = [];
+        if ($category?->exists && $tree->has((int) $category->id)) {
+            $excluded = [(int) $category->id, ...$tree->descendantIds((int) $category->id)];
+        }
+
+        $options = [];
+        foreach ($tree->flatten() as $node) {
+            if (! $node->isNavigationOnly() || in_array($node->id, $excluded, true)) {
+                continue;
+            }
+            $options[$node->id] = implode(' > ', array_map(fn ($pathNode) => $pathNode->name, $tree->path($node->id)));
+        }
+
+        return $options;
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Categories\DestroyCategoryAction;
+use App\Exceptions\CategoryStillHasChildCategories;
 use App\Exceptions\ItemStillHasAccessories;
 use App\Exceptions\ItemStillHasAssetModels;
 use App\Exceptions\ItemStillHasAssets;
@@ -31,6 +32,8 @@ class BulkCategoriesController extends Controller
             try {
                 DestroyCategoryAction::run(category: $category);
                 $success_count++;
+            } catch (CategoryStillHasChildCategories) {
+                $errors[] = trans('admin/categories/message.delete.has_child_categories_named', ['item_name' => $category->name]);
             } catch (ItemStillHasAccessories $e) {
                 $errors[] = trans('general.bulk_delete_associations.assoc_assets_no_count', ['item_name' => $category->name, 'item' => trans('general.category')]);
             } catch (ItemStillHasAssetModels) {

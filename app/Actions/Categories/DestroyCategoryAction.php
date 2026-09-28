@@ -2,6 +2,7 @@
 
 namespace App\Actions\Categories;
 
+use App\Exceptions\CategoryStillHasChildCategories;
 use App\Exceptions\ItemStillHasAccessories;
 use App\Exceptions\ItemStillHasAssetModels;
 use App\Exceptions\ItemStillHasAssets;
@@ -9,11 +10,13 @@ use App\Exceptions\ItemStillHasComponents;
 use App\Exceptions\ItemStillHasConsumables;
 use App\Exceptions\ItemStillHasLicenses;
 use App\Models\Category;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class DestroyCategoryAction
 {
     /**
+     * @throws CategoryStillHasChildCategories
      * @throws ItemStillHasAssets
      * @throws ItemStillHasAssetModels
      * @throws ItemStillHasComponents
@@ -23,6 +26,23 @@ class DestroyCategoryAction
      */
     public static function run(Category $category): bool
     {
+        return DB::transaction(fn (): bool => self::destroy($category));
+    }
+
+    /**
+     * @throws CategoryStillHasChildCategories
+     */
+    private static function destroy(Category $category): bool
+    {
+        // ERS hierarchy: lock the row (same lock the hierarchy write action
+        // takes) so a child cannot be attached while we check, then refuse
+        // to delete any category that still has live child categories.
+        Category::query()->whereKey($category->getKey())->lockForUpdate()->first(['id']);
+
+        if (Category::query()->where('parent_id', $category->getKey())->exists()) {
+            throw new CategoryStillHasChildCategories($category);
+        }
+
         $category->loadCount([
             'assets as assets_count',
             'accessories as accessories_count',

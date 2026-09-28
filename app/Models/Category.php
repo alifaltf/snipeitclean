@@ -142,11 +142,13 @@ class Category extends SnipeModel
     public function isDeletable()
     {
 
-        // We have to check for models as well if the category type is asset
+        // We have to check for models as well if the category type is asset,
+        // and (ERS hierarchy) for live child categories.
         if ($this->category_type == 'asset') {
             return Gate::allows('delete', $this)
                 && ($this->itemCount() == 0)
                 && ($this->models_count == 0)
+                && (! $this->hasLiveChildCategories())
                 && ($this->deleted_at == '');
         }
 
@@ -354,6 +356,24 @@ class Category extends SnipeModel
         return $this->category_type === 'asset'
             && ! $this->isNavigationOnly()
             && ! $this->trashed();
+    }
+
+    /**
+     * True when live child categories still point at this category. Uses a
+     * preloaded children_count (withCount('children as children_count'))
+     * when present to avoid a query per row in listings.
+     */
+    public function hasLiveChildCategories(): bool
+    {
+        if (! $this->exists) {
+            return false;
+        }
+
+        if (isset($this->children_count)) {
+            return (int) $this->children_count > 0;
+        }
+
+        return self::query()->where('parent_id', $this->getKey())->exists();
     }
 
     /**

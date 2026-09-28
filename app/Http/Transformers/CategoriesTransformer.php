@@ -62,6 +62,14 @@ class CategoriesTransformer
                 'consumables_count' => (int) $category->consumables_count,
                 'components_count' => (int) $category->components_count,
                 'licenses_count' => (int) $category->licenses_count,
+                // ERS asset hierarchy (parent is null at the top level or
+                // when the stored parent is no longer a live category).
+                'parent' => ($category->parent) ? [
+                    'id' => (int) $category->parent->id,
+                    'name' => e($category->parent->name),
+                ] : null,
+                'is_assignable' => $category->category_type !== 'asset' || $category->is_assignable !== false,
+                'sort_order' => (int) $category->sort_order,
                 'created_by' => ($category->adminuser) ? [
                     'id' => (int) $category->adminuser->id,
                     'name' => e($category->adminuser->display_name),

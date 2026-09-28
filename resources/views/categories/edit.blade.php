@@ -46,6 +46,59 @@
                     </x-slot:input>
                 </x-form.row>
 
+                {{-- ERS asset hierarchy. Super Users only, asset categories only.
+                     Hiding these controls is a convenience; the server-side
+                     hierarchy action and gate are what enforce the rules. --}}
+                @can('categories.manage_hierarchy')
+                    @if (! $item->exists || $item->category_type === 'asset')
+                        <fieldset id="category-hierarchy-fields" name="category-hierarchy">
+                            <x-form.legend :help_text="trans('admin/categories/general.hierarchy_help')">
+                                {{ trans('admin/categories/general.hierarchy') }}
+                            </x-form.legend>
+
+                            <x-form.radio-row
+                                name="is_assignable"
+                                :label="trans('admin/categories/general.node_role')"
+                                :options="[
+                                    '0' => trans('admin/categories/general.node_role_navigation'),
+                                    '1' => trans('admin/categories/general.node_role_final'),
+                                ]"
+                                :selected="$item->exists ? ($item->is_assignable === false ? '0' : '1') : '1'"
+                                :required="false"
+                                :help_text="trans('admin/categories/general.node_role_help')"
+                            />
+
+                            <x-form.row
+                                :label="trans('admin/categories/general.parent_group')"
+                                name="parent_id"
+                                :help_text="trans('admin/categories/general.parent_group_help')"
+                            >
+                                <x-slot:input>
+                                    <x-input.select
+                                        name="parent_id"
+                                        id="parent_id"
+                                        :options="['' => trans('admin/categories/general.parent_group_none')] + ($hierarchy_parent_options ?? [])"
+                                        :selected="old('parent_id', $item->parent_id)"
+                                        style="min-width:350px"
+                                        aria-label="parent_id"
+                                    />
+                                </x-slot:input>
+                            </x-form.row>
+
+                            <x-form.row
+                                :label="trans('admin/categories/general.sort_order')"
+                                :$item
+                                name="sort_order"
+                                type="number"
+                                min="0"
+                                max="{{ \App\Actions\Categories\SaveCategoryHierarchyAction::MAX_SORT_ORDER }}"
+                                input_div_class="col-md-3"
+                                :help_text="trans('admin/categories/general.sort_order_help')"
+                            />
+                        </fieldset>
+                    @endif
+                @endcan
+
                 <livewire:category-edit-form
                     :alert-on-response="(bool) old('alert_on_response', $item->alert_on_response)"
                     :default-eula-text="$snipeSettings->default_eula_text"
@@ -104,4 +157,29 @@
         </div>
     @endif
 
+@stop
+
+@section('moar_scripts')
+    @can('categories.manage_hierarchy')
+        {{-- Convenience only: show the hierarchy controls for asset categories
+             and disable them otherwise so they are not submitted. --}}
+        <script nonce="{{ csrf_token() }}">
+            $(function () {
+                var $fields = $('#category-hierarchy-fields');
+                if (!$fields.length) {
+                    return;
+                }
+                var $type = $('select[name="category_type"]');
+
+                function toggleHierarchyFields() {
+                    var isAsset = $type.val() === 'asset';
+                    $fields.toggle(isAsset);
+                    $fields.find('input, select').prop('disabled', !isAsset);
+                }
+
+                $type.on('change', toggleHierarchyFields);
+                toggleHierarchyFields();
+            });
+        </script>
+    @endcan
 @stop
