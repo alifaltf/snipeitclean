@@ -10,11 +10,14 @@ use App\Models\Statuslabel;
 use App\Models\User;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\ProvidesDataForFullMultipleCompanySupportTesting;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class StoreAssetWithFullMultipleCompanySupportTest extends TestCase
 {
     use ProvidesDataForFullMultipleCompanySupportTesting;
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
 
     #[DataProvider('dataForFullMultipleCompanySupportTesting')]
     public function test_adheres_to_full_multiple_companies_support_scoping($data)
@@ -23,7 +26,7 @@ class StoreAssetWithFullMultipleCompanySupportTest extends TestCase
 
         $this->settings->enableMultipleFullCompanySupport();
 
-        $this->actingAs($actor)
+        $this->actingAs($this->withAssetView($actor))
             ->post(route('hardware.store'), [
                 'asset_tags' => ['1' => '1234'],
                 'model_id' => AssetModel::factory()->create()->id,

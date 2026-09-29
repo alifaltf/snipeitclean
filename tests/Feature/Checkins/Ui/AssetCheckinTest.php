@@ -13,13 +13,17 @@ use App\Models\Statuslabel;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetCheckinTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_checking_in_asset_requires_correct_permission()
     {
-        $this->actingAs(User::factory()->create())
+        $this->actingAs(User::factory()->viewAssets()->create())
             ->post(route('hardware.checkin.store', [Asset::factory()->assignedToUser()->create()]))
             ->assertForbidden();
     }
@@ -56,7 +60,7 @@ class AssetCheckinTest extends TestCase
             'status_id' => $deployableStatus->id,
         ]);
 
-        $response = $this->actingAs(User::factory()->checkinAssets()->create())
+        $response = $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->get(route('hardware.checkin.create', $asset))
             ->assertOk();
 
@@ -76,7 +80,7 @@ class AssetCheckinTest extends TestCase
             'status_id' => $nonDeployableStatus->id,
         ]);
 
-        $response = $this->actingAs(User::factory()->checkinAssets()->create())
+        $response = $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->get(route('hardware.checkin.create', $asset))
             ->assertOk();
 
@@ -97,7 +101,7 @@ class AssetCheckinTest extends TestCase
             'status_id' => $nonDeployableStatus->id,
         ]);
 
-        $responseWithDeployableOldInput = $this->actingAs(User::factory()->checkinAssets()->create())
+        $responseWithDeployableOldInput = $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->withSession(['_old_input' => ['status_id' => (string) $deployableStatus->id]])
             ->get(route('hardware.checkin.create', $asset))
             ->assertOk();
@@ -111,7 +115,7 @@ class AssetCheckinTest extends TestCase
             'status_id' => $deployableStatus->id,
         ]);
 
-        $responseWithNonDeployableOldInput = $this->actingAs(User::factory()->checkinAssets()->create())
+        $responseWithNonDeployableOldInput = $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->withSession(['_old_input' => ['status_id' => (string) $nonDeployableStatus->id]])
             ->get(route('hardware.checkin.create', $assetWithDeployableStatus))
             ->assertOk();
@@ -139,7 +143,7 @@ class AssetCheckinTest extends TestCase
 
         $currentTimestamp = now();
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(
                 route('hardware.checkin.store', [$asset]),
                 [
@@ -173,7 +177,7 @@ class AssetCheckinTest extends TestCase
             'rtd_location_id' => $rtdLocation->id,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.checkin.store', [$asset]));
 
         $this->assertTrue($asset->refresh()->location()->is($rtdLocation));
@@ -199,7 +203,7 @@ class AssetCheckinTest extends TestCase
             'rtd_location_id' => $rtdLocation->id,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.checkin.store', [$asset]), [
                 'location_id' => $rtdLocation->id,
                 'rtd_location_id' => $rtdLocation->id,
@@ -225,7 +229,7 @@ class AssetCheckinTest extends TestCase
             'rtd_location_id' => $rtdLocation->id,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.checkin.store', [$asset]), [
                 'location_id' => '',
                 'rtd_location_id' => $rtdLocation->id,
@@ -284,7 +288,7 @@ class AssetCheckinTest extends TestCase
         // `rtd_location_id` as independent pickers, so updating the default
         // location just means submitting the desired value on that field.
         // Replaces the older `update_default_location=0` flag semantic.
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.checkin.store', [$asset]), [
                 'location_id' => $location->id,
                 'rtd_location_id' => $location->id,
@@ -300,7 +304,7 @@ class AssetCheckinTest extends TestCase
 
         $this->assertNotNull($asset->licenseseats->first()->assigned_to);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.checkin.store', [$asset]));
 
         $this->assertNull($asset->refresh()->licenseseats->first()->assigned_to);
@@ -323,7 +327,7 @@ class AssetCheckinTest extends TestCase
             'rtd_location_id' => $originalLocation->id,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.checkin.store', [$parentAsset]), [
                 'location_id' => $originalLocation->id,
             ]);
@@ -341,7 +345,7 @@ class AssetCheckinTest extends TestCase
             'location_id' => 0,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.checkin.store', [$asset]));
 
         $this->assertNull($asset->refresh()->rtd_location_id);
@@ -364,7 +368,7 @@ class AssetCheckinTest extends TestCase
     {
         Event::fake([CheckoutableCheckedIn::class]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route(
                 'hardware.checkin.store', [Asset::factory()->assignedToUser()->create()]
             ), [
@@ -384,7 +388,7 @@ class AssetCheckinTest extends TestCase
             'requestable' => 0,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.checkin.store', [$asset]), [
                 'status_id' => $deployableStatus->id,
                 'requestable' => 1,
@@ -431,7 +435,9 @@ class AssetCheckinTest extends TestCase
         $asset->model_id = 0;
         $asset->forceSave();
 
-        $this->actingAs(User::factory()->admin()->create())
+        // ERS Phase 5B1: an asset whose model/category cannot be resolved has no
+        // authorised category, so only a Super User can still reach it.
+        $this->actingAs(User::factory()->superuser()->create())
             ->get(route('hardware.checkin.create', [$asset]))
             ->assertStatus(302)
             ->assertSessionHas('error')
@@ -444,7 +450,9 @@ class AssetCheckinTest extends TestCase
         $asset->model_id = 0;
         $asset->forceSave();
 
-        $this->actingAs(User::factory()->admin()->create())
+        // ERS Phase 5B1: an asset whose model/category cannot be resolved has no
+        // authorised category, so only a Super User can still reach it.
+        $this->actingAs(User::factory()->superuser()->create())
             ->post(route('hardware.checkin.store', $asset))
             ->assertStatus(302)
             ->assertSessionHas('error')
@@ -482,7 +490,7 @@ class AssetCheckinTest extends TestCase
     {
         $asset = Asset::factory()->deleted()->assignedToUser()->create();
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->get(route('hardware.checkin.create', $asset))
             ->assertOk();
     }
@@ -497,7 +505,7 @@ class AssetCheckinTest extends TestCase
         $this->assertTrue($asset->assignedTo->is($user));
         $this->assertNotNull($asset->deleted_at);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.checkin.store', $asset))
             ->assertRedirect()
             ->assertSessionHasNoErrors();

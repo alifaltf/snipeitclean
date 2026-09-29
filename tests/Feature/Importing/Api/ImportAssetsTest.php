@@ -17,10 +17,13 @@ use PHPUnit\Framework\Attributes\Test;
 use Tests\Concerns\TestsPermissionsRequirement;
 use Tests\Support\Importing\AssetsImportFileBuilder as ImportFileBuilder;
 use Tests\Support\Importing\CleansUpImportFiles;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 
 class ImportAssetsTest extends ImportDataTestCase implements TestsPermissionsRequirement
 {
     use CleansUpImportFiles;
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
     use WithFaker;
 
     protected function importFileResponse(array $parameters = []): TestResponse
@@ -863,7 +866,7 @@ class ImportAssetsTest extends ImportDataTestCase implements TestsPermissionsReq
 
         $company = Company::factory()->create();
         $importer = $company->users()->save(
-            User::factory()->createAssets()->editAssets()->canImport()->create(),
+            User::factory()->createAssets()->editAssets()->viewAssets()->canImport()->create(),
         );
 
         $importFileBuilder = ImportFileBuilder::new([

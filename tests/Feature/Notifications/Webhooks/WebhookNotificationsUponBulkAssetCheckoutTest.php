@@ -7,11 +7,15 @@ use App\Models\User;
 use App\Notifications\CheckoutAssetNotification;
 use Illuminate\Support\Facades\Notification;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 #[Group('notifications')]
 class WebhookNotificationsUponBulkAssetCheckoutTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_webbook_is_sent_upon_bulk_asset_checkout()
     {
         Notification::fake();

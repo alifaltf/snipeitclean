@@ -10,6 +10,7 @@ use App\Http\Transformers\PieChartTransformer;
 use App\Http\Transformers\SelectlistTransformer;
 use App\Http\Transformers\StatuslabelsTransformer;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Setting;
 use App\Models\Statuslabel;
 use Illuminate\Http\JsonResponse;
@@ -193,7 +194,9 @@ class StatuslabelsController extends Controller
         $this->authorize('delete', $statuslabel);
 
         // Check that there are no assets associated
-        if ($statuslabel->assets()->count() == 0) {
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        if (AssetCategoryViewScope::withoutRestriction(fn () => $statuslabel->assets()->count()) == 0) {
             $statuslabel->delete();
 
             return response()->json(Helper::formatStandardApiResponse('success', null, trans('admin/statuslabels/message.delete.success')));

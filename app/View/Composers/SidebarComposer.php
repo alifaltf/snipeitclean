@@ -11,6 +11,7 @@ namespace App\View\Composers;
 use App\Models\Asset;
 use App\Models\Setting;
 use App\Services\AssetCategoryNavigation;
+use App\Services\AssetCategoryPermissionService;
 use App\Services\AssetCategorySelection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -64,7 +65,11 @@ class SidebarComposer
                 $selection = $request->routeIs('hardware.index') ? AssetCategorySelection::forRequest($request) : null;
 
                 $view->with([
-                    'asset_category_nav' => AssetCategoryNavigation::items(AssetCategorySelection::treeForRequest($request), $selection),
+                    'asset_category_nav' => AssetCategoryNavigation::items(
+                        AssetCategorySelection::treeForRequest($request),
+                        $selection,
+                        app(AssetCategoryPermissionService::class)->forCurrentUser()
+                    ),
                     'asset_category_selected' => $selection?->id(),
                 ]);
             }

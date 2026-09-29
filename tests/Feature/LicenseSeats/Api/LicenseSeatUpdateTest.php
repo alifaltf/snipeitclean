@@ -7,10 +7,14 @@ use App\Models\Company;
 use App\Models\License;
 use App\Models\LicenseSeat;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class LicenseSeatUpdateTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $licenseSeat = LicenseSeat::factory()->create();
@@ -99,7 +103,7 @@ class LicenseSeatUpdateTest extends TestCase
         $asset = Asset::factory()->create();
         $licenseSeat = LicenseSeat::factory()->assignedToAsset($asset)->create();
 
-        $this->actingAsForApi(User::factory()->checkoutLicenses()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkoutLicenses()->create())
             ->patchJson($this->route($licenseSeat), [
                 'assigned_to' => null,
                 'asset_id' => null,
@@ -146,7 +150,7 @@ class LicenseSeatUpdateTest extends TestCase
 
         $licenseSeat = LicenseSeat::factory()->assignedToUser($user)->create(['unreassignable_seat' => true]);
 
-        $this->actingAsForApi(User::factory()->checkoutLicenses()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkoutLicenses()->create())
             ->patchJson($this->route($licenseSeat), [
                 'asset_id' => Asset::factory()->create()->id,
                 'notes' => 'Attempting to reassign an unreassignable seat',
@@ -249,7 +253,7 @@ class LicenseSeatUpdateTest extends TestCase
         $licenseSeat = LicenseSeat::factory()->create(['assigned_to' => null]);
         $targetAsset = Asset::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutLicenses()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkoutLicenses()->create())
             ->patchJson($this->route($licenseSeat), [
                 'asset_id' => $targetAsset->id,
                 'notes' => 'Checking out the seat to an asset',
@@ -271,7 +275,7 @@ class LicenseSeatUpdateTest extends TestCase
             'unreassignable_seat' => false,
         ]);
 
-        $this->actingAsForApi(User::factory()->checkoutLicenses()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkoutLicenses()->create())
             ->patchJson($this->route($licenseSeat), [
                 'asset_id' => null,
                 'notes' => 'Checking in the seat',
@@ -393,7 +397,7 @@ class LicenseSeatUpdateTest extends TestCase
         $licenseSeat = LicenseSeat::factory()->assignedToAsset($asset)->create();
         $licenseSeat->asset->delete();
 
-        $this->actingAsForApi(User::factory()->checkoutLicenses()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkoutLicenses()->create())
             ->patchJson($this->route($licenseSeat), [
                 'asset_id' => null,
                 'notes' => 'Checking in the seat',

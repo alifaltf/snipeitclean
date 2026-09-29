@@ -7,28 +7,32 @@ use App\Models\Location;
 use App\Models\User;
 use Carbon\Carbon;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 #[Group('auditing')]
 class AuditAssetTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_permission_required_to_view_audit_create_page()
     {
-        $this->actingAs(User::factory()->create())
+        $this->actingAs(User::factory()->viewAssets()->create())
             ->get(route('asset.audit.create', Asset::factory()->create()))
             ->assertForbidden();
     }
 
     public function test_page_can_be_accessed(): void
     {
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->get(route('asset.audit.create', Asset::factory()->create()))
             ->assertStatus(200);
     }
 
     public function test_permission_required_to_audit_asset()
     {
-        $this->actingAs(User::factory()->create())
+        $this->actingAs(User::factory()->viewAssets()->create())
             ->post(route('asset.audit.store', Asset::factory()->create()))
             ->assertForbidden();
     }
@@ -37,7 +41,7 @@ class AuditAssetTest extends TestCase
     {
         $this->settings->setAuditInterval(null);
 
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->get(route('asset.audit.create', Asset::factory()->create()))
             ->assertViewIs('hardware.audit')
             ->assertViewHas('next_audit_date', Carbon::now()->toDateString());
@@ -47,7 +51,7 @@ class AuditAssetTest extends TestCase
     {
         $this->settings->setAuditInterval(5);
 
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->get(route('asset.audit.create', Asset::factory()->create()))
             ->assertViewIs('hardware.audit')
             ->assertViewHas('next_audit_date', Carbon::now()->addMonths(5)->toDateString());
@@ -66,7 +70,7 @@ class AuditAssetTest extends TestCase
 
         $future = now()->addMonths(3)->toDateString();
 
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->post(route('asset.audit.store', $asset), [
                 'location_id' => $anotherLocation->id,
                 'next_audit_date' => $future,
@@ -96,7 +100,7 @@ class AuditAssetTest extends TestCase
 
         $future = now()->addMonths(3)->toDateString();
 
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->post(route('asset.audit.store', $asset), [
                 'location_id' => $anotherLocation->id,
                 'update_location' => '1',

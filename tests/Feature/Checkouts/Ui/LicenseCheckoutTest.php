@@ -7,10 +7,14 @@ use App\Models\CheckoutAcceptance;
 use App\Models\License;
 use App\Models\LicenseSeat;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class LicenseCheckoutTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_page_renders()
     {
         $this->actingAs(User::factory()->superuser()->create())

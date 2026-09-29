@@ -11,8 +11,11 @@ use App\Http\Transformers\AssetModelsTransformer;
 use App\Http\Transformers\AssetsTransformer;
 use App\Http\Transformers\SelectlistTransformer;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\AssetModel;
 use App\Models\Setting;
+use App\Services\AssetCategoryAccess;
+use App\Services\AssetCategoryPermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -276,7 +279,9 @@ class AssetModelsController extends Controller
         $assetmodel = AssetModel::findOrFail($id);
         $this->authorize('delete', $assetmodel);
 
-        if ($assetmodel->assets()->count() > 0) {
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        if (AssetCategoryViewScope::withoutRestriction(fn () => $assetmodel->assets()->count()) > 0) {
             return response()->json(Helper::formatStandardApiResponse('error', null, trans('admin/models/message.assoc_users')));
         }
 
@@ -314,6 +319,13 @@ class AssetModelsController extends Controller
         ])->with('manufacturer', 'category');
 
         $settings = Setting::getSettings();
+
+        // ERS Phase 5B1: category-restricted users only get models from asset
+        // categories they may view, so model options never reveal others.
+        $access = app(AssetCategoryPermissionService::class)->forCurrentUser();
+        if ($access !== null) {
+            $assetmodels = $assetmodels->whereIn('models.category_id', $access->categoryIds(AssetCategoryAccess::VIEW));
+        }
 
         if ($request->filled('search')) {
             $assetmodels = $assetmodels->SearchByManufacturerOrCat($request->input('search'));

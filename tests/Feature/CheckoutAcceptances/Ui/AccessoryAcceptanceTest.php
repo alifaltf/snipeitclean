@@ -10,10 +10,14 @@ use App\Models\User;
 use App\Notifications\AcceptanceItemAcceptedNotification;
 use App\Notifications\AcceptanceItemDeclinedNotification;
 use Illuminate\Support\Facades\Notification;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AccessoryAcceptanceTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_can_accept_accessory_checkout()
     {
         $assignee = User::factory()->create();
@@ -150,7 +154,7 @@ class AccessoryAcceptanceTest extends TestCase
     {
         Notification::fake();
 
-        $otherUser = User::factory()->create();
+        $otherUser = User::factory()->viewAssets()->create();
 
         $acceptance = CheckoutAcceptance::factory()
             ->pending()

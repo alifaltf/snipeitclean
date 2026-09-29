@@ -10,10 +10,14 @@ use App\Models\User;
 use Carbon\Carbon;
 use Tests\Concerns\TestsFullMultipleCompaniesSupport;
 use Tests\Concerns\TestsPermissionsRequirement;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompaniesSupport, TestsPermissionsRequirement
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $component = Component::factory()->create();
@@ -51,7 +55,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
         $asset = Asset::factory()->create();
         $component = Component::factory()->create(['qty' => 2]);
 
-        $this->actingAsForApi(User::factory()->checkoutComponents()->create())
+        $this->actingAsForApi(User::factory()->checkoutComponents()->viewAssets()->create())
             ->postJson(route('api.components.checkout', $component->id), [
                 'assigned_to' => $asset->id,
                 'assigned_qty' => 3,
@@ -83,7 +87,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
 
     public function test_can_checkout_component()
     {
-        $user = User::factory()->checkoutComponents()->create();
+        $user = User::factory()->viewAssets()->checkoutComponents()->create();
         $asset = Asset::factory()->create();
         $component = Component::factory()->create();
 
@@ -101,7 +105,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
 
     public function test_component_checkout_is_logged()
     {
-        $user = User::factory()->checkoutComponents()->create();
+        $user = User::factory()->viewAssets()->checkoutComponents()->create();
         $location = Location::factory()->create();
         $asset = Asset::factory()->create(['location_id' => $location->id]);
         $component = Component::factory()->create();
@@ -147,7 +151,7 @@ class ComponentCheckoutTest extends TestCase implements TestsFullMultipleCompani
 
         [$companyA, $companyB] = Company::factory()->count(2)->create();
 
-        $userInCompanyA = User::factory()->checkoutComponents()->forCompany($companyA)->create();
+        $userInCompanyA = User::factory()->viewAssets()->checkoutComponents()->forCompany($companyA)->create();
         $componentInCompanyA = Component::factory()->for($companyA)->create(['qty' => 1]);
         $assetInCompanyB = Asset::factory()->for($companyB)->create();
 

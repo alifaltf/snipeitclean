@@ -12,6 +12,7 @@ use App\Http\Transformers\LicenseSeatsTransformer;
 use App\Http\Transformers\LicensesTransformer;
 use App\Http\Transformers\SelectlistTransformer;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Company;
 use App\Models\License;
 use App\Models\LicenseSeat;
@@ -371,7 +372,8 @@ class LicensesController extends Controller
                 $licenseSeat->assigned_to = $target->id;
                 $licenseSeat->asset_id = null;
             } else {
-                $target = Asset::withoutGlobalScopes()->whereNull('deleted_at')->find($validated['asset_id'] ?? null);
+                // ERS Phase 5B1: category View still applies to the target lookup.
+                $target = AssetCategoryViewScope::restrict(Asset::withoutGlobalScopes())->whereNull('deleted_at')->find($validated['asset_id'] ?? null);
                 if (! $target) {
                     $errorResponse = response()->json(Helper::formatStandardApiResponse('error', null, trans('admin/licenses/message.asset_does_not_exist')));
 

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Asset;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
@@ -15,8 +16,12 @@ use Illuminate\Support\Facades\Gate;
  * request/job only, per user. Per user it runs at most two queries: the
  * live asset category tree (shared by all users in the request) and one
  * join over the user's groups' grants. Never one query per category.
+ *
+ * Not final only so the TEST suite can substitute a resolver for upstream
+ * tests that explicitly opt in to its compatibility trait (tests/Support).
+ * The application itself always binds this class.
  */
-final class AssetCategoryPermissionService
+class AssetCategoryPermissionService
 {
     /** Global Snipe-IT asset ability that caps each category operation. */
     public const GLOBAL_ABILITIES = [
@@ -40,6 +45,26 @@ final class AssetCategoryPermissionService
         }
 
         return $this->cache[$user->id] ??= $this->resolve($user, $tree);
+    }
+
+    /**
+     * ERS Phase 5B1: the logged-in user's access when category restrictions
+     * apply to them, or null when they are unrestricted (no logged-in user,
+     * e.g. console/queue, or a Super User). Every enforcement point uses
+     * this, so "who is restricted" is decided in one place.
+     */
+    public function forCurrentUser(): ?AssetCategoryAccess
+    {
+        if (! Auth::hasUser()) {
+            return null;
+        }
+
+        $user = Auth::user();
+        if (! $user instanceof User || $user->isSuperUser()) {
+            return null;
+        }
+
+        return $this->forUser($user);
     }
 
     /**
@@ -73,7 +98,7 @@ final class AssetCategoryPermissionService
      *
      * @return array<int, array<string, bool>>
      */
-    private function grantsFor(User $user): array
+    protected function grantsFor(User $user): array
     {
         $rows = DB::table('asset_category_permissions')
             ->join('users_groups', 'users_groups.group_id', '=', 'asset_category_permissions.group_id')

@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Categories\Hierarchy;
 
+use App\Models\AssetCategoryPermission;
 use App\Models\Category;
 use App\Models\Group;
 use App\Models\User;
+use App\Services\AssetCategoryPermissionService;
 
 /**
  * Test data helpers for the ERS asset category hierarchy. Names are test
@@ -12,6 +14,27 @@ use App\Models\User;
  */
 trait CreatesCategoryHierarchy
 {
+    /**
+     * ERS Phase 5B1: give a user asset-category View on the given final
+     * categories through a new permission group (test setup only).
+     */
+    protected function grantAssetCategoryView(User $user, Category ...$categories): User
+    {
+        $group = Group::create(['name' => 'View grants '.uniqid(), 'permissions' => json_encode([])]);
+        foreach ($categories as $category) {
+            // Explicit assignment: the model allows no mass assignment.
+            $row = new AssetCategoryPermission;
+            $row->group_id = $group->id;
+            $row->category_id = $category->id;
+            $row->can_view = true;
+            $row->save();
+        }
+        $user->groups()->attach($group->id);
+        app(AssetCategoryPermissionService::class)->flush();
+
+        return $user->fresh();
+    }
+
     protected function superUser(): User
     {
         return User::factory()->superuser()->create();

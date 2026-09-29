@@ -5,15 +5,19 @@ namespace Tests\Feature\Maintenances\Api;
 use App\Models\Actionlog;
 use App\Models\Maintenance;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class MaintenanceNotesTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_index_requires_permission()
     {
         $maintenance = Maintenance::factory()->create();
 
-        $this->actingAsForApi(User::factory()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
             ->getJson(route('api.maintenances.notes.index', $maintenance))
             ->assertForbidden();
     }
@@ -62,7 +66,7 @@ class MaintenanceNotesTest extends TestCase
     {
         $maintenance = Maintenance::factory()->create();
 
-        $this->actingAsForApi(User::factory()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
             ->postJson(route('api.maintenances.notes.store', $maintenance), ['note' => 'Test'])
             ->assertForbidden();
     }

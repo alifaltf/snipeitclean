@@ -36,6 +36,14 @@ class Maintenance extends SnipeModel implements ICompanyableChild
 
     protected $table = 'maintenances';
 
+    /**
+     * ERS Phase 5B1: hide maintenances of assets the user may not view.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new AssetReferenceCategoryScope(['asset_id']));
+    }
+
     protected $rules = [
         'asset_id' => 'required|integer',
         'supplier_id' => 'nullable|integer',

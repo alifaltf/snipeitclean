@@ -6,10 +6,14 @@ use App\Mail\CheckoutAcceptanceResponseMail;
 use App\Models\CheckoutAcceptance;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class CheckoutResponseEmailTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -89,7 +93,7 @@ class CheckoutResponseEmailTest extends TestCase
 
     private function acceptCheckout(CheckoutAcceptance $checkoutAcceptance): void
     {
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'accepted',
                 'note' => null,
@@ -98,7 +102,7 @@ class CheckoutResponseEmailTest extends TestCase
 
     private function declineCheckout(CheckoutAcceptance $checkoutAcceptance): void
     {
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'declined',
                 'note' => null,

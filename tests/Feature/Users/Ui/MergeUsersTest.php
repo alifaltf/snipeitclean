@@ -8,10 +8,14 @@ use App\Models\Asset;
 use App\Models\Consumable;
 use App\Models\LicenseSeat;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class MergeUsersTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_assets_are_transferred_on_user_merge()
     {
         $user1 = User::factory()->create();
@@ -22,7 +26,7 @@ class MergeUsersTest extends TestCase
         Asset::factory()->count(3)->assignedToUser($user2)->create();
         Asset::factory()->count(3)->assignedToUser($user_to_merge_into)->create();
 
-        $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
+        $response = $this->actingAs(User::factory()->viewAssets()->deleteUsers()->viewUsers()->create())
             ->post(route('users.merge.save', $user1->id),
                 [
                     'ids_to_merge' => [$user1->id, $user2->id],
@@ -162,7 +166,7 @@ class MergeUsersTest extends TestCase
 
         $this->assertEquals(3, $user_to_merge_into->refresh()->acceptances->count());
 
-        $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
+        $response = $this->actingAs(User::factory()->viewAssets()->deleteUsers()->viewUsers()->create())
             ->post(route('users.merge.save', $user1->id),
                 [
                     'ids_to_merge' => [$user1->id, $user2->id],

@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -24,6 +25,9 @@ use Tests\TestCase;
 #[Group('auditing')]
 class BulkAuditAssetsTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     private function bulkUrl(): string
     {
         return route('api.asset.bulk-audit');
@@ -34,7 +38,7 @@ class BulkAuditAssetsTest extends TestCase
         [$a, $b, $c] = Asset::factory()->count(3)->create();
         $future = now()->addMonths(4)->toDateString();
 
-        $response = $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson($this->bulkUrl(), [
                 'ids' => [$a->id, $b->id, $c->id],
                 'next_audit_date' => $future,
@@ -80,7 +84,7 @@ class BulkAuditAssetsTest extends TestCase
     {
         $a = Asset::factory()->create();
 
-        $response = $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson($this->bulkUrl(), [
                 'ids' => [$a->id, 999999],
                 'note' => 'partial',
@@ -149,7 +153,7 @@ class BulkAuditAssetsTest extends TestCase
 
         [$a, $b] = Asset::factory()->count(2)->create();
 
-        $response = $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->post($this->bulkUrl(), [
                 'ids' => [$a->id, $b->id],
                 'note' => 'batch w/ photo',
@@ -213,7 +217,7 @@ class BulkAuditAssetsTest extends TestCase
         $companyA = Company::factory()->create();
         $companyB = Company::factory()->create();
 
-        $userA = User::factory()->auditAssets()->forCompany($companyA->id)->create();
+        $userA = User::factory()->viewAssets()->auditAssets()->forCompany($companyA->id)->create();
         $assetA = Asset::factory()->create(['company_id' => $companyA->id, 'created_by' => $userA->id]);
         $assetB = Asset::factory()->create(['company_id' => $companyB->id]);
 

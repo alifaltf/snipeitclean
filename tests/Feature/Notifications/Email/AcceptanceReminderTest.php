@@ -19,10 +19,14 @@ use Generator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Mail;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AcceptanceReminderTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     private User $admin;
 
     private User $assignee;
@@ -33,7 +37,7 @@ class AcceptanceReminderTest extends TestCase
 
         Mail::fake();
 
-        $this->admin = User::factory()->canViewReports()->create();
+        $this->admin = User::factory()->canViewReports()->viewAssets()->create();
         $this->assignee = User::factory()->create();
     }
 

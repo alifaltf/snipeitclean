@@ -13,6 +13,7 @@ use App\Models\Statuslabel;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -27,6 +28,9 @@ use Tests\TestCase;
  */
 class AssetImportCreatedByTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     #[Test]
     public function new_asset_created_via_import_records_the_importing_users_id_as_created_by(): void
     {
@@ -36,7 +40,7 @@ class AssetImportCreatedByTest extends TestCase
         Company::factory()->create();
         AssetModel::factory()->for($category, 'category')->create(['name' => 'Import Test Model']);
 
-        $importer = User::factory()->canImport()->create();
+        $importer = User::factory()->viewAssets()->canImport()->create();
 
         $csv = "asset tag,item name,category,status,model name\n";
         $csv .= "CREATEDBY-001,Import Created Asset,{$category->name},{$statusLabel->name},Import Test Model\n";
@@ -100,7 +104,7 @@ class AssetImportCreatedByTest extends TestCase
                 'created_by' => $originalOwner->id,
             ]);
 
-        $importer = User::factory()->canImport()->create();
+        $importer = User::factory()->viewAssets()->canImport()->create();
 
         $csv = "asset tag,item name,category,status\n";
         $csv .= "CREATEDBY-002,Renamed Via Import,{$category->name},{$statusLabel->name}\n";

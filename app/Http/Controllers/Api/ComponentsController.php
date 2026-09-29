@@ -12,6 +12,7 @@ use App\Http\Traits\HandlesAdjustQuantity;
 use App\Http\Transformers\ActionlogsTransformer;
 use App\Http\Transformers\ComponentsTransformer;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Company;
 use App\Models\Component;
 use App\Models\Setting;
@@ -384,7 +385,8 @@ class ComponentsController extends Controller
         $this->authorize('checkout', $component);
 
         $validator = Validator::make($request->all(), [
-            'assigned_to' => 'required|exists:assets,id',
+            // ERS Phase 5B1: hidden assets fail like missing ones.
+            'assigned_to' => ['required', AssetCategoryViewScope::existsRule()],
             'assigned_qty' => 'required|numeric|min:1|digits_between:1,'.$component->numRemaining(),
         ]);
 
@@ -401,7 +403,8 @@ class ComponentsController extends Controller
         if ($component->numRemaining() >= $request->input('assigned_qty')) {
             // Resolve the raw target first, then enforce FMCS explicitly.
             // Scoped lookup can hide cross-company records and lead to partial writes.
-            $asset = Asset::withoutGlobalScopes()->find($request->input('assigned_to'));
+            // ERS Phase 5B1: category View still applies to the target lookup.
+            $asset = AssetCategoryViewScope::restrict(Asset::withoutGlobalScopes())->find($request->input('assigned_to'));
 
             // withoutGlobalScopes bypasses SoftDeletes so we can distinguish
             // "no such asset" from "in another company" for FMCS messaging.

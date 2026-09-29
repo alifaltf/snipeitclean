@@ -13,6 +13,8 @@ use App\Http\Requests\ImageUploadRequest;
 use App\Http\Transformers\CategoriesTransformer;
 use App\Http\Transformers\SelectlistTransformer;
 use App\Models\Category;
+use App\Services\AssetCategoryAccess;
+use App\Services\AssetCategoryPermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -303,6 +305,13 @@ class CategoriesController extends Controller
         // category types are unchanged.
         if ($category_type === 'asset') {
             $categories = $categories->where('is_assignable', true);
+
+            // ERS Phase 5B1: category-restricted users only see asset
+            // categories they may view.
+            $access = app(AssetCategoryPermissionService::class)->forCurrentUser();
+            if ($access !== null) {
+                $categories = $categories->whereIn('id', $access->categoryIds(AssetCategoryAccess::VIEW));
+            }
         }
 
         $categories = $categories->orderBy('name', 'ASC')->paginate(50);

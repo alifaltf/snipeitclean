@@ -11,10 +11,14 @@ use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Support\Facades\Crypt;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class UpdateAssetTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_that_a_non_existent_asset_id_returns_error()
     {
         $this->actingAsForApi(User::factory()->editAssets()->createAssets()->create())
@@ -26,7 +30,7 @@ class UpdateAssetTest extends TestCase
     {
         $asset = Asset::factory()->create();
 
-        $this->actingAsForApi(User::factory()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
             ->patchJson(route('api.assets.update', $asset->id))
             ->assertForbidden();
     }
@@ -49,7 +53,7 @@ class UpdateAssetTest extends TestCase
         // sticks. The PATCH-based assignment path is now gated on the
         // checkout permission (was previously bypassable via edit-only)
         // and requires a deployable status (was previously bypassable too).
-        $user = User::factory()->editAssets()->checkoutAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->checkoutAssets()->create();
         $userAssigned = User::factory()->create();
         $company = Company::factory()->create();
         $location = Location::factory()->create();
@@ -208,7 +212,7 @@ class UpdateAssetTest extends TestCase
     {
         $asset = Asset::factory()->laptopMbp()->noPurchaseOrEolDate()->create();
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson((route('api.assets.update', $asset->id)), [
                 'purchase_date' => '2021-01-01',
             ])
@@ -225,7 +229,7 @@ class UpdateAssetTest extends TestCase
     {
         $asset = Asset::factory()->laptopMbp()->noPurchaseOrEolDate()->create();
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson(route('api.assets.update', $asset->id), [
                 'name' => 'test asset',
                 'asset_eol_date' => '2022-01-01',
@@ -243,7 +247,7 @@ class UpdateAssetTest extends TestCase
     {
         $asset = Asset::factory()->laptopMbp()->create();
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson(route('api.assets.update', $asset->id), [
                 'asset_eol_date' => '2025-01-01',
             ])
@@ -337,7 +341,7 @@ class UpdateAssetTest extends TestCase
         ]);
         $rtdLocation = Location::factory()->create();
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson(route('api.assets.update', $asset->id), [
                 'rtd_location_id' => $rtdLocation->id,
             ]);
@@ -354,7 +358,7 @@ class UpdateAssetTest extends TestCase
         $asset = Asset::factory()->laptopMbp()->create();
         $rtdLocation = Location::factory()->create();
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson(route('api.assets.update', $asset->id), [
                 'rtd_location_id' => $rtdLocation->id,
                 'location_id' => $location->id,
@@ -391,7 +395,7 @@ class UpdateAssetTest extends TestCase
 
         $field = CustomField::factory()->testEncrypted()->create();
         $asset = Asset::factory()->hasEncryptedCustomField($field)->create();
-        $normal_user = User::factory()->editAssets()->create();
+        $normal_user = User::factory()->viewAssets()->editAssets()->create();
 
         $asset->{$field->db_column_name()} = Crypt::encrypt('encrypted value should not change');
         $asset->save();
@@ -415,7 +419,7 @@ class UpdateAssetTest extends TestCase
         // Needs both edit + checkout: assigning via PATCH triggers the
         // checkout workflow, which is now gated on the checkout permission
         // (see security fix in Api\AssetsController::applyAssetUpdate).
-        $user = User::factory()->editAssets()->checkoutAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->checkoutAssets()->create();
         $assigned_user = User::factory()->create();
 
         $response = $this->actingAsForApi($user)
@@ -438,7 +442,7 @@ class UpdateAssetTest extends TestCase
         [$companyA, $companyB] = Company::factory()->count(2)->create();
 
         $asset = Asset::factory()->for($companyA)->create(['name' => 'Original Name']);
-        $actorInCompanyA = User::factory()->editAssets()->forCompany($companyA)->create();
+        $actorInCompanyA = User::factory()->viewAssets()->editAssets()->forCompany($companyA)->create();
         $targetUserInCompanyB = User::factory()->forCompany($companyB)->create();
 
         $this->actingAsForApi($actorInCompanyA)
@@ -472,7 +476,7 @@ class UpdateAssetTest extends TestCase
         // log must be written. Use assigned_user / assigned_asset / assigned_location
         // instead (those go through the proper checkout workflow).
         $asset = Asset::factory()->create();
-        $user = User::factory()->editAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->create();
         $assigned_user = User::factory()->create();
 
         $originalAssignedTo = $asset->assigned_to;
@@ -497,7 +501,7 @@ class UpdateAssetTest extends TestCase
     public function test_raw_assigned_to_without_assigned_type_is_ignored_on_update()
     {
         $asset = Asset::factory()->create();
-        $user = User::factory()->editAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->create();
         $assigned_user = User::factory()->create();
 
         $this->actingAsForApi($user)
@@ -515,7 +519,7 @@ class UpdateAssetTest extends TestCase
     public function test_raw_assigned_to_with_bad_assigned_type_is_ignored_on_update()
     {
         $asset = Asset::factory()->create();
-        $user = User::factory()->editAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->create();
         $assigned_user = User::factory()->create();
 
         $this->actingAsForApi($user)
@@ -533,7 +537,7 @@ class UpdateAssetTest extends TestCase
     public function test_raw_assigned_type_without_assigned_to_is_ignored_on_update()
     {
         $asset = Asset::factory()->create();
-        $user = User::factory()->editAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->create();
         $assigned_user = User::factory()->create();
 
         $this->actingAsForApi($user)
@@ -570,7 +574,7 @@ class UpdateAssetTest extends TestCase
     public function test_checkout_to_location_on_asset_update()
     {
         $asset = Asset::factory()->create();
-        $user = User::factory()->editAssets()->checkoutAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->checkoutAssets()->create();
         $assigned_location = Location::factory()->create();
 
         $this->actingAsForApi($user)
@@ -609,7 +613,7 @@ class UpdateAssetTest extends TestCase
     public function test_checkout_asset_on_asset_update()
     {
         $asset = Asset::factory()->create();
-        $user = User::factory()->editAssets()->checkoutAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->checkoutAssets()->create();
         $assigned_asset = Asset::factory()->create();
 
         $this->actingAsForApi($user)
@@ -652,8 +656,8 @@ class UpdateAssetTest extends TestCase
 
         $companyA = Company::factory()->create();
         $companyB = Company::factory()->create();
-        $userA = User::factory()->editAssets()->forCompany($companyA)->create();
-        $userB = User::factory()->editAssets()->forCompany($companyB)->create();
+        $userA = User::factory()->viewAssets()->editAssets()->forCompany($companyA)->create();
+        $userB = User::factory()->viewAssets()->editAssets()->forCompany($companyB)->create();
         $asset = Asset::factory()->create([
             'created_by' => $userA->id,
             'company_id' => $companyA->id,
@@ -679,7 +683,7 @@ class UpdateAssetTest extends TestCase
         $customField = CustomField::factory()->create();
         $customField2 = CustomField::factory()->create();
         $asset = Asset::factory()->hasMultipleCustomFields([$customField])->create();
-        $user = User::factory()->editAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->create();
 
         // successful
         $this->actingAsForApi($user)->patchJson(route('api.assets.update', $asset->id), [
@@ -701,7 +705,7 @@ class UpdateAssetTest extends TestCase
     {
         $asset = Asset::factory()->create(['next_audit_date' => now()->addMonths(3)->toDateString()]);
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson(route('api.assets.update', $asset), [
                 'next_audit_date' => now()->addMonths(6)->toDateString(),
             ])
@@ -717,7 +721,7 @@ class UpdateAssetTest extends TestCase
             'next_audit_date' => now()->addMonths(3)->toDateString(),
         ]);
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson(route('api.assets.update', $asset), [
                 'name' => 'New Name',
                 'next_audit_date' => now()->addMonths(6)->toDateString(),
@@ -747,7 +751,7 @@ class UpdateAssetTest extends TestCase
     {
         $asset = Asset::factory()->create(['name' => 'Original Name']);
         // Edit only. No checkout permission.
-        $editOnly = User::factory()->editAssets()->create();
+        $editOnly = User::factory()->viewAssets()->editAssets()->create();
         $target = User::factory()->create();
 
         $this->actingAsForApi($editOnly)
@@ -785,7 +789,7 @@ class UpdateAssetTest extends TestCase
         $originalHolder = User::factory()->create();
         $newHolder = User::factory()->create();
         $asset = Asset::factory()->create();
-        $actor = User::factory()->editAssets()->checkoutAssets()->create();
+        $actor = User::factory()->viewAssets()->editAssets()->checkoutAssets()->create();
 
         // First checkout: succeeds (asset is available).
         $this->actingAsForApi($actor)
@@ -816,7 +820,7 @@ class UpdateAssetTest extends TestCase
     {
         $pendingStatus = Statuslabel::factory()->pending()->create();
         $asset = Asset::factory()->create(['status_id' => $pendingStatus->id]);
-        $actor = User::factory()->editAssets()->checkoutAssets()->create();
+        $actor = User::factory()->viewAssets()->editAssets()->checkoutAssets()->create();
         $target = User::factory()->create();
 
         $this->actingAsForApi($actor)

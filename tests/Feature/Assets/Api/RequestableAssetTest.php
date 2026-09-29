@@ -5,10 +5,14 @@ namespace Tests\Feature\Assets\Api;
 use App\Models\Asset;
 use App\Models\Company;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class RequestableAssetTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_viewing_requestable_assets_requires_correct_permission()
     {
         $this->actingAsForApi(User::factory()->create())
@@ -21,7 +25,7 @@ class RequestableAssetTest extends TestCase
         $requestableAsset = Asset::factory()->requestable()->create(['asset_tag' => 'requestable']);
         $nonRequestableAsset = Asset::factory()->nonrequestable()->create(['asset_tag' => 'non-requestable']);
 
-        $this->actingAsForApi(User::factory()->viewRequestableAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->viewRequestableAssets()->create())
             ->getJson(route('api.assets.requestable'))
             ->assertOk()
             ->assertResponseContainsInRows($requestableAsset, 'asset_tag')
@@ -36,8 +40,8 @@ class RequestableAssetTest extends TestCase
         $assetB = Asset::factory()->requestable()->for($companyB)->create(['asset_tag' => '0002']);
 
         $superUser = $companyA->users()->save(User::factory()->superuser()->make());
-        $userInCompanyA = $companyA->users()->save(User::factory()->viewRequestableAssets()->make());
-        $userInCompanyB = $companyB->users()->save(User::factory()->viewRequestableAssets()->make());
+        $userInCompanyA = $companyA->users()->save(User::factory()->viewRequestableAssets()->viewAssets()->make());
+        $userInCompanyB = $companyB->users()->save(User::factory()->viewRequestableAssets()->viewAssets()->make());
 
         $this->settings->disableMultipleFullCompanySupport();
 

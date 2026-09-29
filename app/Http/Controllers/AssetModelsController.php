@@ -7,6 +7,7 @@ use App\Helpers\Helper;
 use App\Http\Requests\ImageUploadRequest;
 use App\Http\Requests\StoreAssetModelRequest;
 use App\Models\Actionlog;
+use App\Models\AssetCategoryViewScope;
 use App\Models\AssetModel;
 use App\Models\CustomField;
 use App\Models\SnipeModel;
@@ -206,7 +207,9 @@ class AssetModelsController extends Controller
     {
         $this->authorize('delete', AssetModel::class);
 
-        if ($model->assets()->count() > 0) {
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        if (AssetCategoryViewScope::withoutRestriction(fn () => $model->assets()->count()) > 0) {
             // Throw an error that this model is associated with assets
             return redirect()->route('models.index')->with('error', trans('admin/models/message.assoc_users'));
         }

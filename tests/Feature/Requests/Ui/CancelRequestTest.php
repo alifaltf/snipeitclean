@@ -7,14 +7,18 @@ use App\Models\CheckoutRequest;
 use App\Models\User;
 use Illuminate\Notifications\ChannelManager;
 use Illuminate\Support\Facades\Log;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class CancelRequestTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_user_can_cancel_their_own_pending_request(): void
     {
         $asset = Asset::factory()->create();
-        $user = User::factory()->create();
+        $user = User::factory()->viewAssets()->create();
         CheckoutRequest::factory()->create(['requestable_id' => $asset->id, 'requestable_type' => Asset::class, 'user_id' => $user->id]);
 
         $this->actingAs($user)
@@ -35,7 +39,7 @@ class CancelRequestTest extends TestCase
         $victim = User::factory()->create();
         CheckoutRequest::factory()->create(['requestable_id' => $asset->id, 'requestable_type' => Asset::class, 'user_id' => $victim->id]);
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs(User::factory()->viewAssets()->create())
             ->post(route('account/request-item', [
                 'itemType' => 'asset',
                 'itemId' => $asset->id,
@@ -56,7 +60,7 @@ class CancelRequestTest extends TestCase
     public function test_user_with_own_pending_request_cannot_cancel_another_users_request_via_requestinguser_param(): void
     {
         $asset = Asset::factory()->create();
-        $actor = User::factory()->create();
+        $actor = User::factory()->viewAssets()->create();
         $victim = User::factory()->create();
 
         CheckoutRequest::factory()->create(['requestable_id' => $asset->id, 'requestable_type' => Asset::class, 'user_id' => $actor->id]);
@@ -114,7 +118,7 @@ class CancelRequestTest extends TestCase
     public function test_cancel_succeeds_and_logs_warning_when_notification_throws(): void
     {
         $asset = Asset::factory()->create();
-        $user = User::factory()->create();
+        $user = User::factory()->viewAssets()->create();
         CheckoutRequest::factory()->create(['requestable_id' => $asset->id, 'requestable_type' => Asset::class, 'user_id' => $user->id]);
 
         $this->settings->enableAlertEmail();
@@ -144,7 +148,7 @@ class CancelRequestTest extends TestCase
     public function test_new_request_succeeds_and_logs_warning_when_notification_throws(): void
     {
         $asset = Asset::factory()->requestable()->create();
-        $user = User::factory()->create();
+        $user = User::factory()->viewAssets()->create();
 
         $this->settings->enableAlertEmail();
         config(['app.lock_passwords' => false]);

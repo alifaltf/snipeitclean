@@ -5,10 +5,14 @@ namespace Tests\Feature\Notes;
 use App\Models\Asset;
 use App\Models\Maintenance;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class CreateNotesTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $this->actingAs(User::factory()->create())
@@ -41,7 +45,7 @@ class CreateNotesTest extends TestCase
 
     public function test_can_create_note_for_asset()
     {
-        $actor = User::factory()->editAssets()->create();
+        $actor = User::factory()->viewAssets()->editAssets()->create();
 
         $asset = Asset::factory()->create();
 
@@ -71,7 +75,7 @@ class CreateNotesTest extends TestCase
 
     public function test_can_create_note_for_maintenance()
     {
-        $actor = User::factory()->editAssets()->create();
+        $actor = User::factory()->viewAssets()->editAssets()->create();
         $maintenance = Maintenance::factory()->create();
 
         $this->actingAs($actor)

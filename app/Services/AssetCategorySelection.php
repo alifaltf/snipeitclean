@@ -57,6 +57,18 @@ final class AssetCategorySelection
             return null;
         }
 
+        // ERS Phase 5B1: for category-restricted users a node is only
+        // selectable when they may view it (a granted final category, or a
+        // group with a granted final descendant); otherwise it is treated
+        // like any other invalid value, so its name never reaches the
+        // title or breadcrumb. The covered ids are narrowed to granted ones.
+        $access = app(AssetCategoryPermissionService::class)->forCurrentUser();
+        if ($access !== null) {
+            $allowed = $access->categoryIdsWithin(AssetCategoryAccess::VIEW, $id);
+
+            return $allowed === [] ? null : new self($tree->node($id), $tree->path($id), $allowed);
+        }
+
         return new self($tree->node($id), $tree->path($id), $tree->assignableIdsWithin($id));
     }
 

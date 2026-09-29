@@ -12,16 +12,23 @@ use App\Models\Location;
 use App\Models\Maintenance;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class IndexHistoryTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     /** Assets */
     public function test_viewing_asset_history_index_requires_permission()
     {
+        // ERS Phase 5B1: without assets.view the record is hidden before the
+        // permission check runs, so the answer is a secure not-found, not 403.
         $this->actingAsForApi(User::factory()->create())
             ->getJson(route('api.assets.history', Asset::factory()->create()))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertStatusMessageIs('error');
     }
 
     public function test_viewing_asset_history_user_has_permission()
@@ -173,9 +180,12 @@ class IndexHistoryTest extends TestCase
     /** Maintenances */
     public function test_viewing_maintenance_history_index_requires_permission()
     {
+        // ERS Phase 5B1: without assets.view the record is hidden before the
+        // permission check runs, so the answer is a secure not-found, not 403.
         $this->actingAsForApi(User::factory()->create())
             ->getJson(route('api.maintenances.history', Maintenance::factory()->create()))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertStatusMessageIs('error');
     }
 
     public function test_viewing_maintenance_history_user_has_permission()
@@ -445,7 +455,7 @@ class IndexHistoryTest extends TestCase
     public function test_viewing_user_history_avoids_n_plus_one_queries_for_polymorphic_relations()
     {
         $subject = User::factory()->create();
-        $actor = User::factory()->viewUserHistory()->create();
+        $actor = User::factory()->viewAssets()->viewUserHistory()->create();
         $uniqueNote = 'history-polymorphic-n-plus-one-'.uniqid();
 
         $locations = Location::factory()->count(10)->create();

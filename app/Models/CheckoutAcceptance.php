@@ -17,6 +17,16 @@ class CheckoutAcceptance extends Model
 {
     use HasFactory, Notifiable, SoftDeletes;
 
+    /**
+     * ERS Phase 5B1: hide acceptances for assets the user may not view.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new AssetReferenceCategoryScope([
+            ['checkoutable_type', 'checkoutable_id'],
+        ]));
+    }
+
     protected $casts = [
         'accepted_at' => 'datetime',
         'declined_at' => 'datetime',

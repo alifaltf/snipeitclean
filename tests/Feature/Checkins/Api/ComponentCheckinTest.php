@@ -10,15 +10,19 @@ use App\Models\User;
 use Illuminate\Support\Facades\Event;
 use Tests\Concerns\TestsFullMultipleCompaniesSupport;
 use Tests\Concerns\TestsPermissionsRequirement;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ComponentCheckinTest extends TestCase implements TestsFullMultipleCompaniesSupport, TestsPermissionsRequirement
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $component = Component::factory()->checkedOutToAsset()->create();
 
-        $this->actingAsForApi(User::factory()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
             ->postJson(route('api.components.checkin', $component->assets->first()->pivot->id))
             ->assertForbidden();
     }
@@ -66,7 +70,7 @@ class ComponentCheckinTest extends TestCase implements TestsFullMultipleCompanie
     {
         Event::fake([CheckoutableCheckedIn::class]);
 
-        $user = User::factory()->checkinComponents()->create();
+        $user = User::factory()->viewAssets()->checkinComponents()->create();
 
         $component = Component::factory()->checkedOutToAsset()->create();
         $pivot = $component->assets->first()->pivot;
@@ -95,7 +99,7 @@ class ComponentCheckinTest extends TestCase implements TestsFullMultipleCompanie
     {
         Event::fake([CheckoutableCheckedIn::class]);
 
-        $user = User::factory()->checkinComponents()->create();
+        $user = User::factory()->viewAssets()->checkinComponents()->create();
 
         $component = Component::factory()->checkedOutToAsset()->create();
         $pivot = $component->assets->first()->pivot;
@@ -139,7 +143,7 @@ class ComponentCheckinTest extends TestCase implements TestsFullMultipleCompanie
 
     public function test_checkin_is_logged()
     {
-        $user = User::factory()->checkinComponents()->create();
+        $user = User::factory()->viewAssets()->checkinComponents()->create();
 
         $component = Component::factory()->checkedOutToAsset()->create();
         $pivot = $component->assets->first()->pivot;

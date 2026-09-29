@@ -8,13 +8,17 @@ use App\Models\Asset;
 use App\Models\User;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class DeleteAssetTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_permission_needed_to_delete_asset()
     {
-        $this->actingAs(User::factory()->create())
+        $this->actingAs(User::factory()->viewAssets()->create())
             ->delete(route('hardware.destroy', Asset::factory()->create()))
             ->assertForbidden();
     }
@@ -23,7 +27,7 @@ class DeleteAssetTest extends TestCase
     {
         $asset = Asset::factory()->create();
 
-        $this->actingAs(User::factory()->deleteAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->deleteAssets()->create())
             ->delete(route('hardware.destroy', $asset))
             ->assertRedirectToRoute('hardware.index')
             ->assertSessionHas('success');
@@ -33,7 +37,7 @@ class DeleteAssetTest extends TestCase
 
     public function test_action_log_entry_made_when_asset_deleted()
     {
-        $actor = User::factory()->deleteAssets()->create();
+        $actor = User::factory()->viewAssets()->deleteAssets()->create();
 
         $asset = Asset::factory()->create();
 
@@ -51,7 +55,7 @@ class DeleteAssetTest extends TestCase
 
     public function test_action_logs_action_date_is_populated_when_asset_deleted()
     {
-        $actor = User::factory()->deleteAssets()->create();
+        $actor = User::factory()->viewAssets()->deleteAssets()->create();
 
         $asset = Asset::factory()->create();
 
@@ -84,7 +88,7 @@ class DeleteAssetTest extends TestCase
 
         $this->assertTrue($assignedUser->assets->contains($asset));
 
-        $this->actingAs(User::factory()->deleteAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->deleteAssets()->create())
             ->delete(route('hardware.destroy', $asset));
 
         $this->assertFalse(

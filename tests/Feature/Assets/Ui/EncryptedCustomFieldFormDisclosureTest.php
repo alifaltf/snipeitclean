@@ -9,6 +9,7 @@ use App\Models\CustomFieldset;
 use App\Models\User;
 use Illuminate\Support\Facades\Crypt;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -25,6 +26,9 @@ use Tests\TestCase;
  */
 class EncryptedCustomFieldFormDisclosureTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     #[DataProvider('elementTypeProvider')]
     public function test_edit_form_masks_encrypted_custom_field_for_user_without_view_encrypted(array $fieldAttributes, string $secret): void
     {
@@ -32,7 +36,7 @@ class EncryptedCustomFieldFormDisclosureTest extends TestCase
 
         $asset = $this->assetWithEncryptedField($fieldAttributes, $secret);
 
-        $actor = User::factory()->editAssets()->create();
+        $actor = User::factory()->viewAssets()->editAssets()->create();
 
         $this->actingAs($actor)
             ->get(route('hardware.edit', $asset))
@@ -68,7 +72,7 @@ class EncryptedCustomFieldFormDisclosureTest extends TestCase
             fn ($factory) => $factory->assignedToUser()
         );
 
-        $actor = User::factory()->checkinAssets()->create();
+        $actor = User::factory()->viewAssets()->checkinAssets()->create();
 
         $response = $this->actingAs($actor)->get(route('hardware.checkin.create', $asset))->assertOk();
 
@@ -85,7 +89,7 @@ class EncryptedCustomFieldFormDisclosureTest extends TestCase
             'CHECKOUT-SECRET-SHOULD-NOT-LEAK'
         );
 
-        $actor = User::factory()->checkoutAssets()->create();
+        $actor = User::factory()->viewAssets()->checkoutAssets()->create();
 
         $response = $this->actingAs($actor)->get(route('hardware.checkout.create', $asset))->assertOk();
 
@@ -102,7 +106,7 @@ class EncryptedCustomFieldFormDisclosureTest extends TestCase
             'AUDIT-SECRET-SHOULD-NOT-LEAK'
         );
 
-        $actor = User::factory()->auditAssets()->create();
+        $actor = User::factory()->viewAssets()->auditAssets()->create();
 
         $response = $this->actingAs($actor)->get(route('asset.audit.create', $asset))->assertOk();
 

@@ -10,10 +10,14 @@ use App\Models\Group;
 use App\Models\LicenseSeat;
 use App\Models\Location;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ExportUsersTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $this->actingAs(User::factory()->create())
@@ -71,7 +75,7 @@ class ExportUsersTest extends TestCase
         User::factory()->count(3)->create(['manager_id' => $luke->id]);
         Location::factory()->count(2)->create(['manager_id' => $luke->id]);
 
-        $this->actingAs(User::factory()->viewUsers()->create())
+        $this->actingAs(User::factory()->viewAssets()->viewUsers()->create())
             ->get(route('users.export'))
             ->assertOk()
             ->assertCsvHeader()

@@ -8,10 +8,14 @@ use App\Models\Company;
 use App\Models\Component;
 use App\Models\User;
 use Illuminate\Support\Facades\Event;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ComponentsCheckoutTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_checking_out_component_requires_correct_permission()
     {
         $this->actingAs(User::factory()->create())

@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\Company;
 use App\Models\User;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -23,6 +24,9 @@ use Tests\TestCase;
 #[Group('auditing')]
 class BulkAuditSelectedAssetsTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_permission_required_to_view_form(): void
     {
         $this->actingAs(User::factory()->create())

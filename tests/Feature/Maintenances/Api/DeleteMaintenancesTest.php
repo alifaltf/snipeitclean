@@ -7,10 +7,14 @@ use App\Models\Maintenance;
 use App\Models\User;
 use Tests\Concerns\TestsFullMultipleCompaniesSupport;
 use Tests\Concerns\TestsPermissionsRequirement;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class DeleteMaintenancesTest extends TestCase implements TestsFullMultipleCompaniesSupport, TestsPermissionsRequirement
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $maintenance = Maintenance::factory()->create();
@@ -62,7 +66,7 @@ class DeleteMaintenancesTest extends TestCase implements TestsFullMultipleCompan
     {
         $maintenance = Maintenance::factory()->create();
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->deleteJson(route('api.maintenances.destroy', $maintenance))
             ->assertStatusMessageIs('success');
 

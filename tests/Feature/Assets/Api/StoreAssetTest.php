@@ -14,10 +14,14 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\Fluent\AssertableJson;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class StoreAssetTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission_to_create_asset()
     {
         $this->actingAsForApi(User::factory()->create())
@@ -33,7 +37,7 @@ class StoreAssetTest extends TestCase
         $rtdLocation = Location::factory()->create();
         $status = Statuslabel::factory()->readyToDeploy()->create();
         $supplier = Supplier::factory()->create();
-        $user = User::factory()->createAssets()->create();
+        $user = User::factory()->viewAssets()->createAssets()->create();
         $userAssigned = User::factory()->create();
 
         $response = $this->actingAsForApi($user)
@@ -567,7 +571,7 @@ class StoreAssetTest extends TestCase
     {
         $model = AssetModel::factory()->create();
         $status = Statuslabel::factory()->readyToDeploy()->create();
-        $user = User::factory()->createAssets()->create();
+        $user = User::factory()->viewAssets()->createAssets()->create();
         $userAssigned = User::factory()->create();
 
         $this->settings->enableAutoIncrement();
@@ -690,7 +694,7 @@ class StoreAssetTest extends TestCase
         $model = AssetModel::factory()->create();
         $status = Statuslabel::factory()->readyToDeploy()->create();
         $location = Location::factory()->create();
-        $user = User::factory()->createAssets()->create();
+        $user = User::factory()->viewAssets()->createAssets()->create();
 
         $this->settings->enableAutoIncrement();
 
@@ -717,7 +721,7 @@ class StoreAssetTest extends TestCase
         $model = AssetModel::factory()->create();
         $status = Statuslabel::factory()->readyToDeploy()->create();
         $asset = Asset::factory()->create();
-        $user = User::factory()->createAssets()->create();
+        $user = User::factory()->viewAssets()->createAssets()->create();
 
         $this->settings->enableAutoIncrement();
 

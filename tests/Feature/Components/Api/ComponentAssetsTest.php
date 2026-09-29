@@ -6,10 +6,14 @@ use App\Models\Asset;
 use App\Models\Component;
 use App\Models\User;
 use Illuminate\Testing\Fluent\AssertableJson;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ComponentAssetsTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $component = Component::factory()->create();

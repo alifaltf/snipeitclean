@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\Helper;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Statuslabel;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -143,7 +144,9 @@ class StatuslabelsController extends Controller
         }
 
         // Check that there are no assets associated
-        if ($statuslabel->assets()->count() == 0) {
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        if (AssetCategoryViewScope::withoutRestriction(fn () => $statuslabel->assets()->count()) == 0) {
             $statuslabel->delete();
 
             return redirect()->route('statuslabels.index')->with('success', trans('admin/statuslabels/message.delete.success'));

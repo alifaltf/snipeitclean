@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ImageUploadRequest;
 use App\Models\Accessory;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Company;
 use App\Models\Component;
 use App\Models\Consumable;
@@ -148,7 +149,9 @@ final class CompaniesController extends Controller
         }
 
         $this->authorize('delete', $company);
-        if (! $company->isDeletable()) {
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        if (! AssetCategoryViewScope::withoutRestriction(fn () => $company->isDeletable())) {
             return redirect()->route('companies.index')
                 ->with('error', trans('admin/companies/message.assoc_users'));
         }

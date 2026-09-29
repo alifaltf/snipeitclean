@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\CustomField;
 use App\Models\Statuslabel;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -20,6 +21,9 @@ use Tests\TestCase;
  */
 class BulkUpdateAssetsTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     private function bulkUrl(): string
     {
         return route('api.assets.bulk-update');
@@ -43,7 +47,7 @@ class BulkUpdateAssetsTest extends TestCase
         [$a, $b, $c] = Asset::factory()->count(3)->create();
         $status = Statuslabel::factory()->create();
 
-        $response = $this->actingAsForApi(User::factory()->editAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson($this->bulkUrl(), [
                 'ids' => [$a->id, $b->id, $c->id],
                 'status_id' => $status->id,
@@ -88,7 +92,7 @@ class BulkUpdateAssetsTest extends TestCase
     {
         $a = Asset::factory()->create();
 
-        $response = $this->actingAsForApi(User::factory()->editAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson($this->bulkUrl(), [
                 'ids' => [$a->id, 999999],
                 'notes' => 'partial',
@@ -184,7 +188,7 @@ class BulkUpdateAssetsTest extends TestCase
         $customField = CustomField::factory()->create();
         [$a, $b] = Asset::factory()->hasMultipleCustomFields([$customField])->count(2)->create();
 
-        $response = $this->actingAsForApi(User::factory()->editAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson($this->bulkUrl(), [
                 'ids' => [$a->id, $b->id],
                 $customField->db_column_name() => 'bulk custom',
@@ -214,7 +218,7 @@ class BulkUpdateAssetsTest extends TestCase
         $withField = Asset::factory()->hasMultipleCustomFields([$customField])->create();
         $withoutField = Asset::factory()->create();
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson($this->bulkUrl(), [
                 'ids' => [$withField->id, $withoutField->id],
                 $customField->db_column_name() => 'partial write',
@@ -291,7 +295,7 @@ class BulkUpdateAssetsTest extends TestCase
         $companyA = Company::factory()->create();
         $companyB = Company::factory()->create();
 
-        $userA = User::factory()->editAssets()->forCompany($companyA->id)->create();
+        $userA = User::factory()->viewAssets()->editAssets()->forCompany($companyA->id)->create();
         $assetA = Asset::factory()->create(['company_id' => $companyA->id, 'created_by' => $userA->id]);
         $assetB = Asset::factory()->create(['company_id' => $companyB->id]);
 

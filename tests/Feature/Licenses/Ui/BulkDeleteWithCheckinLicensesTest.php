@@ -9,10 +9,14 @@ use App\Models\License;
 use App\Models\LicenseSeat;
 use App\Models\User;
 use Tests\Concerns\TestsPermissionsRequirement;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class BulkDeleteWithCheckinLicensesTest extends TestCase implements TestsPermissionsRequirement
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $this->actingAs(User::factory()->create())
@@ -54,7 +58,7 @@ class BulkDeleteWithCheckinLicensesTest extends TestCase implements TestsPermiss
         $asset = Asset::factory()->create();
         LicenseSeat::factory()->assignedToAsset($asset)->create(['license_id' => $license->id]);
 
-        $this->actingAs(User::factory()->deleteLicenses()->checkinLicenses()->create())
+        $this->actingAs(User::factory()->viewAssets()->deleteLicenses()->checkinLicenses()->create())
             ->post(route('licenses.bulk.delete'), [
                 'bulk_actions' => 'delete_with_checkin',
                 'ids' => [$license->id],

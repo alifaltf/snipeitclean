@@ -6,15 +6,19 @@ use App\Models\Actionlog;
 use App\Models\Maintenance;
 use App\Models\User;
 use Carbon\Carbon;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class CompleteMaintenanceTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $maintenance = Maintenance::factory()->create();
 
-        $this->actingAsForApi(User::factory()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
             ->postJson(route('api.maintenances.complete', $maintenance))
             ->assertForbidden();
     }

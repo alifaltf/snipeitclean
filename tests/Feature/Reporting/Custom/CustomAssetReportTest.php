@@ -13,11 +13,15 @@ use App\Models\User;
 use Illuminate\Support\Facades\Crypt;
 use League\Csv\Reader;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 #[Group('custom-reporting')]
 class CustomAssetReportTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission_to_view_page()
     {
         $this->actingAs(User::factory()->create())
@@ -52,7 +56,7 @@ class CustomAssetReportTest extends TestCase
         Asset::factory()->create(['name' => 'Asset A']);
         Asset::factory()->create(['name' => 'Asset B']);
 
-        $this->actingAs(User::factory()->canViewReports()->create())
+        $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->post('reports/custom', [
                 'asset_name' => '1',
                 'asset_tag' => '1',
@@ -71,8 +75,8 @@ class CustomAssetReportTest extends TestCase
         Asset::factory()->for($companyB)->create(['name' => 'Asset B']);
 
         $superUser = $companyA->users()->save(User::factory()->superuser()->make());
-        $userInCompanyA = $companyA->users()->save(User::factory()->canViewReports()->make());
-        $userInCompanyB = $companyB->users()->save(User::factory()->canViewReports()->make());
+        $userInCompanyA = $companyA->users()->save(User::factory()->canViewReports()->viewAssets()->make());
+        $userInCompanyB = $companyB->users()->save(User::factory()->canViewReports()->viewAssets()->make());
 
         $this->settings->disableMultipleFullCompanySupport();
 
@@ -113,7 +117,7 @@ class CustomAssetReportTest extends TestCase
         Asset::factory()->create(['name' => 'Asset D', 'last_checkin' => '2023-08-04']);
         Asset::factory()->create(['name' => 'Asset E', 'last_checkin' => '2023-08-05']);
 
-        $this->actingAs(User::factory()->canViewReports()->create())
+        $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->post('reports/custom', [
                 'asset_name' => '1',
                 'asset_tag' => '1',
@@ -135,7 +139,7 @@ class CustomAssetReportTest extends TestCase
         Asset::factory()->assignedToUser()->create(['name' => 'Assigned Asset']);
         Asset::factory()->create(['name' => 'Unassigned Asset']);
 
-        $this->actingAs(User::factory()->canViewReports()->create())
+        $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->post('reports/custom', [
                 'asset_name' => '1',
                 'assignment_status' => 'assigned',
@@ -150,7 +154,7 @@ class CustomAssetReportTest extends TestCase
         Asset::factory()->assignedToUser()->create(['name' => 'Assigned Asset']);
         Asset::factory()->create(['name' => 'Unassigned Asset']);
 
-        $this->actingAs(User::factory()->canViewReports()->create())
+        $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->post('reports/custom', [
                 'asset_name' => '1',
                 'assignment_status' => 'unassigned',
@@ -175,7 +179,7 @@ class CustomAssetReportTest extends TestCase
         Asset::factory()->assignedToUser()->create(['name' => 'User-Assigned Asset']);
         Asset::factory()->create(['name' => 'Unassigned Asset']);
 
-        $reporter = User::factory()->canViewReports()->create();
+        $reporter = User::factory()->viewAssets()->canViewReports()->create();
 
         // With the checkbox: column appears, parent tag in the asset-to-asset
         // row, empty cell everywhere else.
@@ -231,9 +235,10 @@ class CustomAssetReportTest extends TestCase
         $asset->{$columnName} = Crypt::encrypt('super-secret-value');
         $asset->save();
 
-        $user = User::factory()->create([
+        $user = User::factory()->viewAssets()->create([
             'permissions' => json_encode([
                 'reports.view' => '1',
+                'assets.view' => '1',
                 'assets.view.encrypted_custom_fields' => '1',
             ]),
         ]);
@@ -263,7 +268,7 @@ class CustomAssetReportTest extends TestCase
         // that ever breaks (or the item_type/action_type filter drifts), the
         // whole join returns empty and the customer's report is just the
         // header row.
-        $reporter = User::factory()->canViewReports()->create();
+        $reporter = User::factory()->viewAssets()->canViewReports()->create();
 
         // Asset currently checked out to a user AND had a checkout log in range.
         $expected = Asset::factory()->assignedToUser()->create(['name' => 'Should Appear']);
@@ -323,7 +328,7 @@ class CustomAssetReportTest extends TestCase
         $outsideRange = Asset::factory()->create(['name' => 'Asset Checked Out Elsewhere']);
         $neverCheckedOut = Asset::factory()->create(['name' => 'Asset Never Checked Out']);
 
-        $reporter = User::factory()->canViewReports()->create();
+        $reporter = User::factory()->viewAssets()->canViewReports()->create();
 
         $log = new Actionlog;
         $log->item_type = Asset::class;
@@ -367,7 +372,7 @@ class CustomAssetReportTest extends TestCase
         Asset::factory()->create(['name' => 'Asset Below', 'purchase_cost' => 50]);
         Asset::factory()->create(['name' => 'Asset Above', 'purchase_cost' => 200]);
 
-        $this->actingAs(User::factory()->canViewReports()->create())
+        $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->post('reports/custom', [
                 'asset_name' => '1',
                 'purchase_cost_start' => 100,
@@ -413,7 +418,7 @@ class CustomAssetReportTest extends TestCase
         $switch->{$osColumn} = '17.9';
         $switch->save();
 
-        $response = $this->actingAs(User::factory()->canViewReports()->create())
+        $response = $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->post('reports/custom', [
                 'asset_name' => '1',
                 $priorityColumn => '1',
@@ -487,7 +492,7 @@ class CustomAssetReportTest extends TestCase
         Asset::factory()->create(['name' => 'Asset After'])
             ->forceFill(['updated_at' => '2025-04-01 09:00:00'])->save();
 
-        $this->actingAs(User::factory()->canViewReports()->create())
+        $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->post('reports/custom', [
                 'asset_name' => '1',
                 'asset_tag' => '1',

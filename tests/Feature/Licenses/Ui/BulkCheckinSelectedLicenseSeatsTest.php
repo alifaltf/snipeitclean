@@ -10,10 +10,14 @@ use App\Models\LicenseSeat;
 use App\Models\User;
 use Illuminate\Support\Facades\Event;
 use Tests\Concerns\TestsPermissionsRequirement;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class BulkCheckinSelectedLicenseSeatsTest extends TestCase implements TestsPermissionsRequirement
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $seat = LicenseSeat::factory()->assignedToUser()->create();
@@ -181,7 +185,7 @@ class BulkCheckinSelectedLicenseSeatsTest extends TestCase implements TestsPermi
         $targetAsset = Asset::factory()->create();
         $seat = LicenseSeat::factory()->assignedToAsset($targetAsset)->create(['license_id' => $license->id]);
 
-        $this->actingAs(User::factory()->checkinLicenses()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinLicenses()->create())
             ->post(route('licenses.bulkcheckin.selected'), ['ids' => [$seat->id]]);
 
         Event::assertDispatched(CheckoutableCheckedIn::class, function ($event) use ($targetAsset) {

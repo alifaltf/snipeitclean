@@ -9,10 +9,14 @@ use App\Models\LicenseSeat;
 use App\Models\User;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class LicenseCheckoutTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     #[Test]
     public function requires_checkout_permission(): void
     {
@@ -54,7 +58,7 @@ class LicenseCheckoutTest extends TestCase
         $asset = Asset::factory()->create();
         $seat = $license->licenseseats()->first();
 
-        $this->actingAs(User::factory()->checkoutLicenses()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkoutLicenses()->create())
             ->post(route('licenses.checkout.save', $license->id), [
                 'asset_id' => $asset->id,
             ])

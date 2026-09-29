@@ -8,10 +8,14 @@ use App\Models\Company;
 use App\Models\LicenseSeat;
 use App\Models\Location;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class DeleteUserTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_user_can_delete_another_user()
     {
         $user = User::factory()->deleteUsers()->viewUsers()->create();
@@ -178,16 +182,16 @@ class DeleteUserTest extends TestCase
         $user = User::factory()->create();
         $asset = Asset::factory()->create();
 
-        $this->actingAs(User::factory()->checkoutAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkoutAssets()->create())
             ->post(route('hardware.checkout.store', $asset->id), [
                 'checkout_to_type' => 'user',
                 'assigned_user' => $user->id,
                 'name' => 'Changed Name',
             ]);
 
-        $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())->assertFalse($user->isDeletable());
+        $this->actingAs(User::factory()->viewAssets()->deleteUsers()->viewUsers()->create())->assertFalse($user->isDeletable());
 
-        $response = $this->actingAs(User::factory()->deleteUsers()->viewUsers()->create())
+        $response = $this->actingAs(User::factory()->viewAssets()->deleteUsers()->viewUsers()->create())
             ->delete(route('users.destroy', $user->id))
             ->assertStatus(302)
             ->assertRedirect(route('users.index'));

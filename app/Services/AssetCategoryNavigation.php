@@ -14,6 +14,9 @@ namespace App\Services;
  *    category exists somewhere below them (empty groups are hidden);
  *  - the selected node is "active" and its ancestors are "open".
  *
+ * ERS Phase 5B1: for category-restricted users only categories they may
+ * view are shown, so inaccessible category names never appear.
+ *
  * No category ids or names are hard-coded.
  */
 final class AssetCategoryNavigation
@@ -21,15 +24,15 @@ final class AssetCategoryNavigation
     /**
      * @return list<array{id: int, name: string, group: bool, depth: int, active: bool, ancestor: bool, open: bool, children: list<array<string, mixed>>}>
      */
-    public static function items(AssetCategoryTree $tree, ?AssetCategorySelection $selection = null): array
+    public static function items(AssetCategoryTree $tree, ?AssetCategorySelection $selection = null, ?AssetCategoryAccess $access = null): array
     {
         $activeId = $selection?->id();
         $ancestorIds = $selection ? array_flip($selection->ancestorIds()) : [];
 
-        $build = function (array $nodes) use (&$build, $tree, $activeId, $ancestorIds): array {
+        $build = function (array $nodes) use (&$build, $tree, $activeId, $ancestorIds, $access): array {
             $items = [];
             foreach ($nodes as $node) {
-                if (! self::isVisible($tree, $node)) {
+                if (! self::isVisible($tree, $node, $access)) {
                     continue;
                 }
 
@@ -52,8 +55,18 @@ final class AssetCategoryNavigation
         return $build($tree->roots());
     }
 
-    private static function isVisible(AssetCategoryTree $tree, AssetCategoryTreeNode $node): bool
+    /**
+     * ERS Phase 5B1: with an $access (a category-restricted user) only
+     * granted final categories, and groups with a granted final descendant,
+     * are shown. Without one (Super User) every live final category and
+     * every non-empty group is shown, as before.
+     */
+    private static function isVisible(AssetCategoryTree $tree, AssetCategoryTreeNode $node, ?AssetCategoryAccess $access): bool
     {
+        if ($access !== null) {
+            return $access->allowsWithin(AssetCategoryAccess::VIEW, $node->id);
+        }
+
         return $node->isAssignable || $tree->assignableIdsWithin($node->id) !== [];
     }
 }

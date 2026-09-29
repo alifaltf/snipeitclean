@@ -4,10 +4,14 @@ namespace Tests\Feature\Users;
 
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class TransferUserItemsValidationTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_transfer_rejects_same_source_and_target(): void
     {
         $source = User::factory()->create();
@@ -104,6 +108,7 @@ class TransferUserItemsValidationTest extends TestCase
     {
         return User::factory()
             ->viewUsers()
+            ->viewAssets()
             ->checkinAssets()
             ->checkoutAssets()
             ->create();

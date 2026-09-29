@@ -5,6 +5,7 @@ namespace App\Actions\Depreciations;
 use App\Exceptions\ItemStillHasAssetModels;
 use App\Exceptions\ItemStillHasAssets;
 use App\Exceptions\ItemStillHasLicenses;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Depreciation;
 
 class DestroyDepreciationAction
@@ -16,11 +17,13 @@ class DestroyDepreciationAction
      */
     public static function run(Depreciation $depreciation): bool
     {
-        $depreciation->loadCount([
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        AssetCategoryViewScope::withoutRestriction(fn () => $depreciation->loadCount([
             'assets as assets_count',
             'models as models_count',
             'licenses as licenses_count',
-        ]);
+        ]));
 
         if ($depreciation->assets_count > 0) {
             throw new ItemStillHasAssets($depreciation);

@@ -13,6 +13,7 @@ use App\Http\Transformers\SelectlistTransformer;
 use App\Models\Accessory;
 use App\Models\AccessoryCheckout;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Company;
 use App\Models\Location;
 use App\Models\Setting;
@@ -411,7 +412,9 @@ class LocationsController extends Controller
     public function destroy($id): JsonResponse
     {
         $this->authorize('delete', Location::class);
-        $location = Location::withCount('assignedAssets as assigned_assets_count')
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        $location = AssetCategoryViewScope::withoutRestriction(fn () => Location::withCount('assignedAssets as assigned_assets_count')
             ->withCount('assignedAssets as assigned_assets_count')
             ->withCount('assets as assets_count')
             ->withCount('assignedAccessories as assigned_accessories_count')
@@ -421,7 +424,7 @@ class LocationsController extends Controller
             ->withCount('users as users_count')
             ->withCount('consumables as consumables_count')
             ->withCount('components as components_count')
-            ->findOrFail($id);
+            ->findOrFail($id));
 
         if (! $location->isDeletable()) {
             return response()

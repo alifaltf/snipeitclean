@@ -355,7 +355,10 @@ class Component extends SnipeModel
 
         return $this->belongsToMany(Asset::class, 'components_assets')
             ->withPivot('id', 'assigned_qty', 'created_at', 'created_by', 'note')
-            ->withoutGlobalScope(new CompanyableScope);
+            ->withoutGlobalScope(new CompanyableScope)
+            // ERS Phase 5B1: quantities must count units checked out to every
+            // asset, including assets hidden by asset-category permissions.
+            ->withoutGlobalScope(AssetCategoryViewScope::class);
 
     }
 

@@ -6,10 +6,14 @@ use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\License;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class DisplaySigTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_authentication(): void
     {
         $actionlog = Actionlog::factory()->acceptedSignature()->create();
@@ -29,9 +33,11 @@ class DisplaySigTest extends TestCase
     {
         $actionlog = Actionlog::factory()->acceptedSignature()->create();
 
+        // ERS Phase 5B1: without assets.view the record is hidden before the
+        // permission check runs, so the answer is a secure not-found, not 403.
         $this->actingAs(User::factory()->create())
             ->get(route('log.signature.view', ['filename' => $actionlog->accept_signature]))
-            ->assertForbidden();
+            ->assertRedirect();
     }
 
     public function test_user_with_asset_view_permission_can_view_asset_signature(): void

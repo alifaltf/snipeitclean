@@ -14,10 +14,14 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetCheckoutTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -27,7 +31,7 @@ class AssetCheckoutTest extends TestCase
 
     public function test_checking_out_asset_requires_correct_permission()
     {
-        $this->actingAs(User::factory()->create())
+        $this->actingAs(User::factory()->viewAssets()->create())
             ->post(route('hardware.checkout.store', Asset::factory()->create()), [
                 'checkout_to_type' => 'user',
                 'assigned_user' => User::factory()->create()->id,
@@ -68,7 +72,7 @@ class AssetCheckoutTest extends TestCase
     {
         $asset = Asset::factory()->create();
 
-        $this->actingAs(User::factory()->checkoutAssets()->create())
+        $this->actingAs(User::factory()->checkoutAssets()->viewAssets()->create())
             ->post(route('hardware.checkout.store', $asset), [
                 'checkout_to_type' => 'asset',
                 'assigned_asset' => $asset->id,
@@ -268,7 +272,7 @@ class AssetCheckoutTest extends TestCase
 
         $newStatus = Statuslabel::factory()->readyToDeploy()->create();
         $asset = Asset::factory()->create();
-        $admin = User::factory()->checkoutAssets()->create();
+        $admin = User::factory()->viewAssets()->checkoutAssets()->create();
 
         $defaultFieldsAlwaysIncludedInUIFormSubmission = [
             'assigned_user' => null,
@@ -316,7 +320,7 @@ class AssetCheckoutTest extends TestCase
 
         $this->assertFalse($user->licenses->contains($seat->license));
 
-        $this->actingAs(User::factory()->checkoutAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkoutAssets()->create())
             ->post(route('hardware.checkout.store', $asset), [
                 'checkout_to_type' => 'user',
                 'assigned_user' => $user->id,
@@ -332,7 +336,7 @@ class AssetCheckoutTest extends TestCase
         $asset = Asset::factory()->create(['requestable' => 1]);
         $targetUser = User::factory()->create();
 
-        $this->actingAs(User::factory()->checkoutAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkoutAssets()->create())
             ->post(route('hardware.checkout.store', $asset), [
                 'checkout_to_type' => 'user',
                 'assigned_user' => $targetUser->id,
@@ -362,7 +366,7 @@ class AssetCheckoutTest extends TestCase
     {
         $asset = Asset::factory()->create(['last_checkout' => now()->subMonth()]);
 
-        $this->actingAs(User::factory()->checkoutAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkoutAssets()->create())
             ->post(route('hardware.checkout.store', $asset), [
                 'checkout_to_type' => 'user',
                 'assigned_user' => User::factory()->create()->id,
@@ -380,7 +384,9 @@ class AssetCheckoutTest extends TestCase
         $asset->model_id = 0;
         $asset->forceSave();
 
-        $this->actingAs(User::factory()->admin()->create())
+        // ERS Phase 5B1: an asset whose model/category cannot be resolved has no
+        // authorised category, so only a Super User can still reach it.
+        $this->actingAs(User::factory()->superuser()->create())
             ->get(route('hardware.checkout.create', $asset))
             ->assertStatus(302)
             ->assertSessionHas('error')

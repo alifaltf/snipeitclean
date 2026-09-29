@@ -6,6 +6,7 @@ use App\Events\CheckoutableCheckedOut;
 use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Component;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
@@ -91,7 +92,8 @@ class ComponentCheckoutController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'asset_id' => 'required|exists:assets,id',
+            // ERS Phase 5B1: hidden assets fail like missing ones.
+            'asset_id' => ['required', AssetCategoryViewScope::existsRule()],
             'assigned_qty' => "required|numeric|min:1|digits_between:1,$max_to_checkout",
         ]);
 

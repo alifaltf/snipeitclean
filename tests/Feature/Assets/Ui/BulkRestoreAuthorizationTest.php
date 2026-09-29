@@ -4,6 +4,7 @@ namespace Tests\Feature\Assets\Ui;
 
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -23,6 +24,9 @@ use Tests\TestCase;
  */
 class BulkRestoreAuthorizationTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_user_with_edit_but_no_delete_cannot_bulk_restore()
     {
         $asset = Asset::factory()->deleted()->create();

@@ -6,15 +6,22 @@ use App\Models\Asset;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Testing\Fluent\AssertableJson;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssignedAssetsTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
+        // ERS Phase 5B1: without assets.view the record is hidden before the
+        // permission check runs, so the answer is a secure not-found, not 403.
         $this->actingAsForApi(User::factory()->create())
             ->getJson(route('api.assets.assigned_assets', Asset::factory()->create()))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertStatusMessageIs('error');
     }
 
     public function test_adheres_to_company_scoping()

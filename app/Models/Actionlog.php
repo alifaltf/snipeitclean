@@ -137,6 +137,12 @@ class Actionlog extends SnipeModel
     public static function boot()
     {
         parent::boot();
+
+        // ERS Phase 5B1: hide log entries about assets the user may not view.
+        static::addGlobalScope(new AssetReferenceCategoryScope([
+            ['item_type', 'item_id'],
+            ['target_type', 'target_id'],
+        ]));
         static::creating(function (self $actionlog): void {
             // Only resolve company_id if it was never explicitly set by the caller.
             // Using array_key_exists on getRawOriginal() / getAttributes() lets us

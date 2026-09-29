@@ -7,6 +7,7 @@ use App\Helpers\Helper;
 use App\Http\Controllers\Controller;
 use App\Http\Transformers\LicenseSeatsTransformer;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\License;
 use App\Models\LicenseSeat;
 use App\Models\Setting;
@@ -124,7 +125,8 @@ class LicenseSeatsController extends Controller
                 // must be a valid asset or null to unassign
                 function ($attribute, $value, $fail) {
                     // Validate existence without company scopes; FMCS checks happen explicitly below.
-                    if (! is_null($value) && ! Asset::withoutGlobalScopes()->where('id', $value)->whereNull('deleted_at')->exists()) {
+                    // ERS Phase 5B1: category View still applies to the target lookup.
+                    if (! is_null($value) && ! AssetCategoryViewScope::restrict(Asset::withoutGlobalScopes())->where('id', $value)->whereNull('deleted_at')->exists()) {
                         $fail('The selected asset_id is invalid.');
                     }
                 },
@@ -179,7 +181,8 @@ class LicenseSeatsController extends Controller
                 $targetAsset = null;
                 if (! is_null($request->input('asset_id'))) {
                     // Resolve unscoped target so FMCS company mismatch can be enforced explicitly.
-                    $targetAsset = Asset::withoutGlobalScopes()->find($request->input('asset_id'));
+                    // ERS Phase 5B1: category View still applies to the target lookup.
+                    $targetAsset = AssetCategoryViewScope::restrict(Asset::withoutGlobalScopes())->find($request->input('asset_id'));
 
                     if (! $targetAsset) {
                         $errorResponse = response()->json(Helper::formatStandardApiResponse('error', null, 'Target not found'));

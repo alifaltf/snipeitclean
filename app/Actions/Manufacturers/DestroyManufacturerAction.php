@@ -7,6 +7,7 @@ use App\Exceptions\ItemStillHasAssets;
 use App\Exceptions\ItemStillHasComponents;
 use App\Exceptions\ItemStillHasConsumables;
 use App\Exceptions\ItemStillHasLicenses;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Manufacturer;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -22,13 +23,15 @@ class DestroyManufacturerAction
      */
     public static function run(Manufacturer $manufacturer): bool
     {
-        $manufacturer->loadCount([
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        AssetCategoryViewScope::withoutRestriction(fn () => $manufacturer->loadCount([
             'assets as assets_count',
             'accessories as accessories_count',
             'consumables as consumables_count',
             'components as components_count',
             'licenses as licenses_count',
-        ]);
+        ]));
 
         if ($manufacturer->assets_count > 0) {
             throw new ItemStillHasAssets($manufacturer);

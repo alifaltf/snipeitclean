@@ -12,15 +12,19 @@ use App\Models\User;
 use App\Notifications\AcceptanceItemAcceptedNotification;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetAcceptanceTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_asset_checkout_accept_page_renders()
     {
         $checkoutAcceptance = CheckoutAcceptance::factory()->pending()->create();
 
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->get(route('account.accept.item', $checkoutAcceptance))
             ->assertViewIs('account.accept.create');
     }
@@ -75,7 +79,7 @@ class AssetAcceptanceTest extends TestCase
 
         $this->assertTrue($checkoutAcceptance->isPending());
 
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'accepted',
                 'note' => 'my note',
@@ -119,7 +123,7 @@ class AssetAcceptanceTest extends TestCase
 
         $signatureOutput = 'data:image/png;base64,'.base64_encode($signaturePng);
 
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'accepted',
                 'note' => 'signed in test',
@@ -142,7 +146,7 @@ class AssetAcceptanceTest extends TestCase
 
         $this->assertTrue($checkoutAcceptance->isPending());
 
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'declined',
                 'note' => 'my note',
@@ -163,7 +167,7 @@ class AssetAcceptanceTest extends TestCase
     {
         $checkoutAcceptance = CheckoutAcceptance::factory()->pending()->create();
 
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'accepted',
                 'note' => 'my note',
@@ -187,7 +191,7 @@ class AssetAcceptanceTest extends TestCase
     {
         $checkoutAcceptance = CheckoutAcceptance::factory()->pending()->create();
 
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'declined',
                 'note' => 'my note',
@@ -228,7 +232,7 @@ class AssetAcceptanceTest extends TestCase
             ->for($asset, 'checkoutable')
             ->create();
 
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'accepted',
             ])
@@ -266,7 +270,7 @@ class AssetAcceptanceTest extends TestCase
         $ssrfPayload = '![y](http://169.254.169.254/latest/meta-data/)';
         $filePayload = '![z](file:///var/www/html/.env)';
 
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'accepted',
                 'note' => "{$lfrPayload} {$ssrfPayload} {$filePayload}",
@@ -456,7 +460,7 @@ class AssetAcceptanceTest extends TestCase
 
         $checkoutAcceptance = CheckoutAcceptance::factory()->pending()->create();
 
-        $this->actingAs($checkoutAcceptance->assignedTo)
+        $this->actingAs($this->withAssetView($checkoutAcceptance->assignedTo))
             ->post(route('account.store-acceptance', $checkoutAcceptance), [
                 'asset_acceptance' => 'accepted',
                 'note' => str_repeat('a', 500),

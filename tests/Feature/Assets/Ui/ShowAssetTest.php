@@ -5,15 +5,21 @@ namespace Tests\Feature\Assets\Ui;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ShowAssetTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_permission_required_to_view_asset()
     {
+        // ERS Phase 5B1: without assets.view the record is hidden before the
+        // permission check runs, so the answer is a secure not-found, not 403.
         $this->actingAs(User::factory()->create())
             ->get(route('hardware.show', Asset::factory()->create()))
-            ->assertForbidden();
+            ->assertRedirect();
     }
 
     public function test_can_view_asset()

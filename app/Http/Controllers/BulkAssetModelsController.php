@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\AssetModels\BulkUpdateAssetModelsAction;
 use App\Helpers\Helper;
+use App\Models\AssetCategoryViewScope;
 use App\Models\AssetModel;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -138,7 +139,9 @@ class BulkAssetModelsController extends Controller
         $models_raw_array = $request->input('ids');
 
         if ((is_array($models_raw_array)) && (count($models_raw_array) > 0)) {
-            $models = AssetModel::whereIn('id', $models_raw_array)->withCount('assets as assets_count')->get();
+            // ERS Phase 5B1: integrity check, so count every associated asset,
+            // including ones hidden from this user by asset-category permissions.
+            $models = AssetCategoryViewScope::withoutRestriction(fn () => AssetModel::whereIn('id', $models_raw_array)->withCount('assets as assets_count')->get());
 
             $del_error_count = 0;
             $del_count = 0;

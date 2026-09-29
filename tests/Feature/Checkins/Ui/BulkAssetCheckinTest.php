@@ -11,10 +11,14 @@ use App\Models\Location;
 use App\Models\Statuslabel;
 use App\Models\User;
 use Illuminate\Support\Facades\Event;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class BulkAssetCheckinTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_checkin_permission()
     {
         $asset = Asset::factory()->assignedToUser()->create();
@@ -91,7 +95,7 @@ class BulkAssetCheckinTest extends TestCase
         $assignedAsset = Asset::factory()->assignedToUser()->create();
         $unassignedAsset = Asset::factory()->create();
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => [$assignedAsset->id, $unassignedAsset->id],
             ])
@@ -108,7 +112,7 @@ class BulkAssetCheckinTest extends TestCase
         $rtdStatus = Statuslabel::factory()->readyToDeploy()->create();
         $assets = Asset::factory()->assignedToUser()->count(2)->create();
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'status_id' => $rtdStatus->id,
@@ -129,7 +133,7 @@ class BulkAssetCheckinTest extends TestCase
             'rtd_location_id' => $rtdLocation->id,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
             ]);
@@ -144,7 +148,7 @@ class BulkAssetCheckinTest extends TestCase
         $rtdLocation = Location::factory()->create();
         $assets = Asset::factory()->assignedToUser()->count(2)->create(['rtd_location_id' => $rtdLocation->id]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'location_id' => PHP_INT_MAX,
@@ -193,7 +197,7 @@ class BulkAssetCheckinTest extends TestCase
             'rtd_location_id' => $rtdLocation->id,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'location_id' => $submittedLocation->id,
@@ -216,7 +220,7 @@ class BulkAssetCheckinTest extends TestCase
             'rtd_location_id' => $rtdLocation->id,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'location_id' => $submittedLocation->id,
@@ -237,7 +241,7 @@ class BulkAssetCheckinTest extends TestCase
 
         $this->assertNotNull($asset->licenseseats->first()->assigned_to);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => [$asset->id],
                 'checkin_licenses' => '1',
@@ -282,7 +286,7 @@ class BulkAssetCheckinTest extends TestCase
 
         $asset = Asset::factory()->assignedToUser()->create();
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => [$asset->id],
                 'checkin_at' => '2024-06-15',
@@ -311,7 +315,7 @@ class BulkAssetCheckinTest extends TestCase
             'location_id' => $checkedOutLocation->id,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => [$parentAsset->id],
                 'checkin_child_assets' => '1',
@@ -337,7 +341,7 @@ class BulkAssetCheckinTest extends TestCase
             'location_id' => $checkedOutLocation->id,
         ]);
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => [$parentAsset->id],
                 'checkin_child_assets' => '0',
@@ -368,7 +372,7 @@ class BulkAssetCheckinTest extends TestCase
         $asset = Asset::factory()->assignedToUser()->create();
         $originUrl = route('hardware.index').'?status_type=Deployed';
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->withSession(['url.intended' => $originUrl])
             ->post(route('hardware.bulkcheckin.store'), [
                 'selected_assets' => [$asset->id],

@@ -10,6 +10,7 @@ use App\Exceptions\ItemStillHasComponents;
 use App\Exceptions\ItemStillHasConsumables;
 use App\Exceptions\ItemStillHasLicenses;
 use App\Models\AssetCategoryPermission;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Category;
 use App\Services\AssetCategoryPermissionService;
 use Illuminate\Support\Facades\DB;
@@ -45,14 +46,16 @@ class DestroyCategoryAction
             throw new CategoryStillHasChildCategories($category);
         }
 
-        $category->loadCount([
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        AssetCategoryViewScope::withoutRestriction(fn () => $category->loadCount([
             'assets as assets_count',
             'accessories as accessories_count',
             'consumables as consumables_count',
             'components as components_count',
             'licenses as licenses_count',
             'models as models_count',
-        ]);
+        ]));
 
         if ($category->assets_count > 0) {
             throw new ItemStillHasAssets($category);

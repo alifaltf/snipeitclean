@@ -13,18 +13,22 @@ use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 #[Group('custom-reporting')]
 class CustomComponentReportTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     private User $actor;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->actor = User::factory()->canViewReports()->create();
+        $this->actor = User::factory()->canViewReports()->viewAssets()->create();
     }
 
     public function test_requires_permission_to_view_page()

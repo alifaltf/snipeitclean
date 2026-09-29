@@ -4,10 +4,14 @@ namespace Tests\Feature\Checkins\Api;
 
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetCheckinByTagTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_checking_in_asset_by_tag_requires_correct_permission()
     {
         $asset = Asset::factory()->assignedToUser()->create();
@@ -21,7 +25,7 @@ class AssetCheckinByTagTest extends TestCase
     {
         $asset = Asset::factory()->assignedToUser()->create();
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkinbytag'), ['asset_tag' => $asset->asset_tag])
             ->assertOk()
             ->assertStatusMessageIs('success');
@@ -41,7 +45,7 @@ class AssetCheckinByTagTest extends TestCase
     {
         $asset = Asset::factory()->assignedToUser()->create(['name' => 'My Asset Name']);
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkinbytag'), [
                 'asset_tag' => $asset->asset_tag,
                 'clear_name' => '1',
@@ -56,7 +60,7 @@ class AssetCheckinByTagTest extends TestCase
     {
         $asset = Asset::factory()->assignedToUser()->create(['name' => 'My Asset Name']);
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkinbytag'), ['asset_tag' => $asset->asset_tag])
             ->assertOk()
             ->assertStatusMessageIs('success');
@@ -72,7 +76,7 @@ class AssetCheckinByTagTest extends TestCase
     {
         $asset = Asset::factory()->assignedToUser()->create();
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkinbytag'), [
                 'checkin_key' => $asset->asset_tag,
                 'checkin_by_field' => 'asset_tag',
@@ -89,7 +93,7 @@ class AssetCheckinByTagTest extends TestCase
 
         $asset = Asset::factory()->assignedToUser()->create(['serial' => 'SN-CHECKIN-BY-SERIAL-1']);
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkinbytag'), [
                 'checkin_key' => 'SN-CHECKIN-BY-SERIAL-1',
                 'checkin_by_field' => 'serial',
@@ -127,7 +131,7 @@ class AssetCheckinByTagTest extends TestCase
         // That path must keep working after the resolver refactor.
         $asset = Asset::factory()->assignedToUser()->create();
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkinbytag'), [
                 'asset_tag' => $asset->asset_tag,
             ])

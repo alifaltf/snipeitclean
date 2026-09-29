@@ -11,10 +11,14 @@ use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class EditMaintenanceTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_page_renders()
     {
         $this->actingAs(User::factory()->superuser()->create())
@@ -105,7 +109,7 @@ class EditMaintenanceTest extends TestCase
         $this->settings->enableMultipleFullCompanySupport();
 
         $company = Company::factory()->create();
-        $user = $company->users()->save(User::factory()->editAssets()->make());
+        $user = $company->users()->save(User::factory()->editAssets()->viewAssets()->make());
         $asset = Asset::factory()->create(['company_id' => $company->id]);
         $maintenance = Maintenance::factory()->create(['asset_id' => $asset->id]);
 
@@ -128,7 +132,7 @@ class EditMaintenanceTest extends TestCase
         $this->settings->enableMultipleFullCompanySupport();
 
         $company = Company::factory()->create();
-        $user = $company->users()->save(User::factory()->editAssets()->make());
+        $user = $company->users()->save(User::factory()->editAssets()->viewAssets()->make());
         $assetA = Asset::factory()->create(['company_id' => $company->id]);
         $assetB = Asset::factory()->create(['company_id' => $company->id]);
         $maintenance = Maintenance::factory()->create(['asset_id' => $assetA->id]);

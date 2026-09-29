@@ -4,10 +4,14 @@ namespace Tests\Feature\Users\Ui\BulkActions;
 
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class BulkMergeUsersTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_delete_permission()
     {
         $target = User::factory()->create();

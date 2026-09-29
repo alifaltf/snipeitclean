@@ -266,6 +266,9 @@ class Asset extends Depreciable
 
     protected static function booted(): void
     {
+        // ERS Phase 5B1: category View permissions (see AssetCategoryViewScope).
+        static::addGlobalScope(new AssetCategoryViewScope);
+
         static::forceDeleted(function (Asset $asset) {
             $asset->requests()->forceDelete();
         });

@@ -11,10 +11,14 @@ use App\Models\Location;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AccessoryCheckoutTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_checking_out_accessory_requires_correct_permission()
     {
         $this->actingAs(User::factory()->create())
@@ -148,7 +152,7 @@ class AccessoryCheckoutTest extends TestCase
         $accessory = Accessory::factory()->create(['qty' => 5]);
         $asset = Asset::factory()->create();
 
-        $this->actingAs(User::factory()->checkoutAccessories()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkoutAccessories()->create())
             ->from(route('accessories.checkout.show', $accessory))
             ->post(route('accessories.checkout.store', $accessory), [
                 'assigned_asset' => $asset->id,

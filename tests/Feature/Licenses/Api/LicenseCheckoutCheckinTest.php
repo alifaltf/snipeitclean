@@ -10,10 +10,14 @@ use App\Models\LicenseSeat;
 use App\Models\User;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class LicenseCheckoutCheckinTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     // ---------------------------------------------------------------------------
     // Checkout
     // ---------------------------------------------------------------------------
@@ -61,7 +65,7 @@ class LicenseCheckoutCheckinTest extends TestCase
         $license = License::factory()->create(['seats' => 1]);
         $asset = Asset::factory()->create();
 
-        $this->actingAsForApi(User::factory()->checkoutLicenses()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkoutLicenses()->create())
             ->postJson(route('api.licenses.checkout', $license->id), [
                 'target_type' => 'asset',
                 'asset_id' => $asset->id,

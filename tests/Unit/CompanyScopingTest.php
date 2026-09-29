@@ -15,10 +15,14 @@ use App\Models\Maintenance;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class CompanyScopingTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     /**
      * Every companyable model that stores its own company_id on a real
      * column (as opposed to Users, which uses the company_user pivot).
@@ -52,8 +56,8 @@ class CompanyScopingTest extends TestCase
         $modelB = $model::factory()->for($companyB)->create();
 
         $superUser = $companyA->users()->save(User::factory()->superuser()->make());
-        $userInCompanyA = $companyA->users()->save(User::factory()->make());
-        $userInCompanyB = $companyB->users()->save(User::factory()->make());
+        $userInCompanyA = $companyA->users()->save(User::factory()->viewAssets()->make());
+        $userInCompanyB = $companyB->users()->save(User::factory()->viewAssets()->make());
 
         $this->settings->disableMultipleFullCompanySupport();
 
@@ -92,8 +96,8 @@ class CompanyScopingTest extends TestCase
         $maintenanceForCompanyB = Maintenance::factory()->for(Asset::factory()->for($companyB))->create();
 
         $superUser = $companyA->users()->save(User::factory()->superuser()->make());
-        $userInCompanyA = $companyA->users()->save(User::factory()->make());
-        $userInCompanyB = $companyB->users()->save(User::factory()->make());
+        $userInCompanyA = $companyA->users()->save(User::factory()->viewAssets()->make());
+        $userInCompanyB = $companyB->users()->save(User::factory()->viewAssets()->make());
 
         $this->settings->disableMultipleFullCompanySupport();
 
@@ -132,8 +136,8 @@ class CompanyScopingTest extends TestCase
         $licenseSeatB = LicenseSeat::factory()->for(Asset::factory()->for($companyB))->create();
 
         $superUser = $companyA->users()->save(User::factory()->superuser()->make());
-        $userInCompanyA = $companyA->users()->save(User::factory()->make());
-        $userInCompanyB = $companyB->users()->save(User::factory()->make());
+        $userInCompanyA = $companyA->users()->save(User::factory()->viewAssets()->make());
+        $userInCompanyB = $companyB->users()->save(User::factory()->viewAssets()->make());
 
         $this->settings->disableMultipleFullCompanySupport();
 
@@ -170,7 +174,7 @@ class CompanyScopingTest extends TestCase
         $company = Company::factory()->create();
         $nullCompanyItem = $model::factory()->create(['company_id' => null]);
         $companyItem = $model::factory()->for($company)->create();
-        $companyUser = $company->users()->save(User::factory()->make());
+        $companyUser = $company->users()->save(User::factory()->viewAssets()->make());
 
         $this->settings->enableMultipleFullCompanySupport();
 
@@ -185,7 +189,7 @@ class CompanyScopingTest extends TestCase
         $company = Company::factory()->create();
         $nullCompanyItem = $model::factory()->create(['company_id' => null]);
         $companyItem = $model::factory()->for($company)->create();
-        $companyUser = $company->users()->save(User::factory()->make());
+        $companyUser = $company->users()->save(User::factory()->viewAssets()->make());
 
         $this->settings->enableFloaterMode();
 
@@ -200,7 +204,7 @@ class CompanyScopingTest extends TestCase
         $company = Company::factory()->create();
         $nullCompanyItem = $model::factory()->create(['company_id' => null]);
         $companyItem = $model::factory()->for($company)->create();
-        $nullCompanyUser = User::factory()->withoutCompany()->create();
+        $nullCompanyUser = User::factory()->viewAssets()->withoutCompany()->create();
 
         $this->settings->enableMultipleFullCompanySupport();
 
@@ -215,7 +219,7 @@ class CompanyScopingTest extends TestCase
         $company = Company::factory()->create();
         $nullCompanyItem = $model::factory()->create(['company_id' => null]);
         $companyItem = $model::factory()->for($company)->create();
-        $nullCompanyUser = User::factory()->withoutCompany()->create();
+        $nullCompanyUser = User::factory()->viewAssets()->withoutCompany()->create();
 
         $this->settings->enableFloaterMode();
 

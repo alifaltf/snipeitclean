@@ -6,10 +6,14 @@ use App\Models\Asset;
 use App\Models\CheckoutRequest;
 use App\Models\Company;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetRequestIndexTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission_to_view_asset_request_index()
     {
         $this->actingAs(User::factory()->create())

@@ -12,10 +12,14 @@ use App\Models\Statuslabel;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetImportCreatedAtTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     /**
      * Test that importing assets doesn't modify created_at timestamps on existing assets
      * This test addresses the reported bug where large imports caused random created_at changes
@@ -49,7 +53,7 @@ class AssetImportCreatedAtTest extends TestCase
 
         // Perform import with update flag. The same user has to upload and
         // process, because the process endpoint scopes to the file's uploader.
-        $importer = User::factory()->canImport()->create();
+        $importer = User::factory()->viewAssets()->canImport()->create();
 
         $this->actingAsForApi($importer)
             ->postJson(route('api.imports.store'), [
@@ -123,7 +127,7 @@ class AssetImportCreatedAtTest extends TestCase
 
         // Same user has to upload and process, because the process endpoint
         // scopes to the file's uploader.
-        $importer = User::factory()->canImport()->create();
+        $importer = User::factory()->viewAssets()->canImport()->create();
 
         $this->actingAsForApi($importer)
             ->postJson(route('api.imports.store'), [

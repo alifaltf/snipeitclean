@@ -5,15 +5,19 @@ namespace Tests\Feature\Assets\Ui;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ForceCheckinAssetTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_permission_required_to_force_checkin_asset()
     {
         $asset = Asset::factory()->create();
 
-        $this->actingAs(User::factory()->create())
+        $this->actingAs(User::factory()->viewAssets()->create())
             ->post(route('asset.checkin.force', $asset))
             ->assertForbidden();
     }
@@ -26,7 +30,7 @@ class ForceCheckinAssetTest extends TestCase
         $asset->assigned_type = null; // Missing type
         $asset->forceSave();
 
-        $response = $this->actingAs(User::factory()->checkinAssets()->create())
+        $response = $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('asset.checkin.force', $asset));
 
         $response->assertRedirect(route('hardware.show', $asset))
@@ -65,7 +69,7 @@ class ForceCheckinAssetTest extends TestCase
         // Hard delete the user
         $user->forceDelete();
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('asset.checkin.force', $asset))
             ->assertRedirect(route('hardware.show', $asset))
             ->assertSessionHas('success');
@@ -83,7 +87,7 @@ class ForceCheckinAssetTest extends TestCase
         $asset->assigned_type = User::class;
         $asset->save();
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('asset.checkin.force', $asset))
             ->assertRedirect(route('hardware.show', $asset))
             ->assertSessionHas('error');
@@ -99,7 +103,7 @@ class ForceCheckinAssetTest extends TestCase
         $asset->assigned_type = null;
         $asset->save();
 
-        $this->actingAs(User::factory()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkinAssets()->create())
             ->post(route('asset.checkin.force', $asset))
             ->assertRedirect(route('hardware.show', $asset))
             ->assertSessionHas('error');

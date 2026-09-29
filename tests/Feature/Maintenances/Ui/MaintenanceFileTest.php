@@ -9,17 +9,21 @@ use App\Models\Maintenance;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class MaintenanceFileTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_non_superuser_can_upload_maintenance_file_via_ui_route()
     {
         Storage::fake('local');
 
         $company = Company::factory()->create();
 
-        $user = User::factory()
+        $user = User::factory()->viewAssets()
             ->editAssets()->forCompany($company)->create();
 
         $asset = Asset::factory()->create(['company_id' => $company->id]);

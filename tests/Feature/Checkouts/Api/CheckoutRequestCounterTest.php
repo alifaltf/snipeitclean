@@ -5,10 +5,14 @@ namespace Tests\Feature\Checkouts\Api;
 use App\Models\Asset;
 use App\Models\User;
 use Illuminate\Support\Facades\Notification;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class CheckoutRequestCounterTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,7 +26,7 @@ class CheckoutRequestCounterTest extends TestCase
         // unconditionally decrement requests_counter, which drove the
         // counter negative and misrepresented pending admin work.
         $asset = Asset::factory()->requestable()->create(['requests_counter' => 0]);
-        $user = User::factory()->create();
+        $user = User::factory()->viewAssets()->create();
 
         $this->actingAsForApi($user)
             ->postJson(route('api.assets.requests.destroy', $asset))
@@ -40,7 +44,7 @@ class CheckoutRequestCounterTest extends TestCase
         // decrement fired, so the counter and the pending queue drifted
         // apart.
         $asset = Asset::factory()->requestable()->create(['requests_counter' => 0]);
-        $user = User::factory()->create();
+        $user = User::factory()->viewAssets()->create();
 
         $this->actingAsForApi($user)
             ->postJson(route('api.assets.requests.store', $asset))
@@ -65,7 +69,7 @@ class CheckoutRequestCounterTest extends TestCase
         // Companion to the two above: a legitimate request-then-cancel
         // round trip must leave the counter at 0.
         $asset = Asset::factory()->requestable()->create(['requests_counter' => 0]);
-        $user = User::factory()->create();
+        $user = User::factory()->viewAssets()->create();
 
         $this->actingAsForApi($user)
             ->postJson(route('api.assets.requests.store', $asset))
@@ -86,7 +90,7 @@ class CheckoutRequestCounterTest extends TestCase
         // Combined regression: request once, cancel twice. The second
         // cancel must 404 without dragging the counter below zero.
         $asset = Asset::factory()->requestable()->create(['requests_counter' => 0]);
-        $user = User::factory()->create();
+        $user = User::factory()->viewAssets()->create();
 
         $this->actingAsForApi($user)->postJson(route('api.assets.requests.store', $asset))->assertOk();
         $this->actingAsForApi($user)->postJson(route('api.assets.requests.destroy', $asset))->assertOk();

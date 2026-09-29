@@ -5,10 +5,14 @@ namespace Tests\Feature\Assets\Api;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetNotesTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_that_a_non_existent_asset_id_returns_error()
     {
         $this->actingAsForApi(User::factory()->editAssets()->create())
@@ -20,7 +24,7 @@ class AssetNotesTest extends TestCase
     {
         $asset = Asset::factory()->create();
 
-        $this->actingAsForApi(User::factory()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
             ->postJson(route('api.notes.store', $asset), [
                 'note' => 'test',
             ])
@@ -31,7 +35,7 @@ class AssetNotesTest extends TestCase
     {
         $asset = Asset::factory()->create();
 
-        $this->actingAsForApi(User::factory()->editAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->postJson(route('api.notes.store', $asset), [
                 'note' => 'This is a test note.',
             ])

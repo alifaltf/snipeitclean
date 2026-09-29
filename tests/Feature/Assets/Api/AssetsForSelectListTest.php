@@ -5,10 +5,14 @@ namespace Tests\Feature\Assets\Api;
 use App\Models\Asset;
 use App\Models\Company;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetsForSelectListTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_view_selectlists_permission(): void
     {
         $this->actingAsForApi(User::factory()->create())
@@ -21,7 +25,7 @@ class AssetsForSelectListTest extends TestCase
         Asset::factory()->create(['asset_tag' => '0001']);
         Asset::factory()->create(['asset_tag' => '0002']);
 
-        $response = $this->actingAsForApi(User::factory()->createAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->createAssets()->create())
             ->getJson(route('assets.selectlist', ['search' => '000']))
             ->assertOk();
 
@@ -40,8 +44,8 @@ class AssetsForSelectListTest extends TestCase
         $assetB = Asset::factory()->for($companyB)->create(['asset_tag' => '0002']);
 
         $superUser = $companyA->users()->save(User::factory()->superuser()->make());
-        $userInCompanyA = $companyA->users()->save(User::factory()->createAssets()->make());
-        $userInCompanyB = $companyB->users()->save(User::factory()->createAssets()->make());
+        $userInCompanyA = $companyA->users()->save(User::factory()->createAssets()->viewAssets()->make());
+        $userInCompanyB = $companyB->users()->save(User::factory()->createAssets()->viewAssets()->make());
 
         $this->settings->disableMultipleFullCompanySupport();
 
@@ -82,7 +86,7 @@ class AssetsForSelectListTest extends TestCase
     {
         [$assetA, $assetB] = Asset::factory()->count(2)->create();
 
-        $actor = User::factory()->createAssets()->create();
+        $actor = User::factory()->viewAssets()->createAssets()->create();
 
         $this->actingAsForApi($actor)
             ->getJson(route('assets.selectlist', ['excludeId' => $assetA->id]))
@@ -104,7 +108,7 @@ class AssetsForSelectListTest extends TestCase
         // so this test uses a non-superuser admin who is a member of all three companies — that
         // gives them visibility to every candidate asset, leaving the explicit companyId filter
         // as the only active narrowing.
-        $actor = User::factory()->createAssets()->create();
+        $actor = User::factory()->viewAssets()->createAssets()->create();
         $companyA->users()->attach($actor);
         $companyB->users()->attach($actor);
         $companyC->users()->attach($actor);
@@ -159,7 +163,7 @@ class AssetsForSelectListTest extends TestCase
         $otherCompanyAsset = Asset::factory()->for($companyB)->create(['asset_tag' => 'FLOATER-CB']);
         $floaterAsset = Asset::factory()->create(['asset_tag' => 'FLOATER-NULL', 'company_id' => null]);
 
-        $actor = User::factory()->createAssets()->forCompany($companyA->id)->create();
+        $actor = User::factory()->viewAssets()->createAssets()->forCompany($companyA->id)->create();
 
         $this->actingAsForApi($actor)
             ->getJson(route('assets.selectlist', ['companyId' => $companyA->id]))
@@ -184,7 +188,7 @@ class AssetsForSelectListTest extends TestCase
         $companyAsset = Asset::factory()->for($companyA)->create(['asset_tag' => 'STRICT-CA']);
         $floaterAsset = Asset::factory()->create(['asset_tag' => 'STRICT-NULL', 'company_id' => null]);
 
-        $actor = User::factory()->createAssets()->forCompany($companyA->id)->create();
+        $actor = User::factory()->viewAssets()->createAssets()->forCompany($companyA->id)->create();
 
         $this->actingAsForApi($actor)
             ->getJson(route('assets.selectlist', ['companyId' => $companyA->id]))

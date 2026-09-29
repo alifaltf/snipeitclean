@@ -6,10 +6,14 @@ use App\Models\Asset;
 use App\Models\CustomField;
 use App\Models\User;
 use Illuminate\Support\Facades\Crypt;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetHistoryTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     private function findFieldEntry(array $rows, string $dbColumn): ?array
     {
         foreach ($rows as $row) {

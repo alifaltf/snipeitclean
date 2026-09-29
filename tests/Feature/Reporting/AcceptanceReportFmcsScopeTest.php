@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\CheckoutAcceptance;
 use App\Models\Company;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -24,6 +25,9 @@ use Tests\TestCase;
  */
 class AcceptanceReportFmcsScopeTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     private function seedPendingAcceptanceOwnedBy(Company $company): array
     {
         $asset = Asset::factory()->create(['company_id' => $company->id, 'name' => 'Asset-'.$company->id]);
@@ -40,7 +44,7 @@ class AcceptanceReportFmcsScopeTest extends TestCase
         [$assetA] = $this->seedPendingAcceptanceOwnedBy($companyA);
         [$assetB] = $this->seedPendingAcceptanceOwnedBy($companyB);
 
-        $reporterA = User::factory()->canViewReports()->forCompany($companyA)->create();
+        $reporterA = User::factory()->viewAssets()->canViewReports()->forCompany($companyA)->create();
 
         $response = $this->actingAs($reporterA)
             ->get(route('reports/unaccepted_assets'))
@@ -58,7 +62,7 @@ class AcceptanceReportFmcsScopeTest extends TestCase
         [$assetA] = $this->seedPendingAcceptanceOwnedBy($companyA);
         [$assetB] = $this->seedPendingAcceptanceOwnedBy($companyB);
 
-        $reporterA = User::factory()->canViewReports()->forCompany($companyA)->create();
+        $reporterA = User::factory()->viewAssets()->canViewReports()->forCompany($companyA)->create();
 
         $response = $this->actingAs($reporterA)
             ->post(route('reports/export/unaccepted_assets'))
@@ -115,7 +119,7 @@ class AcceptanceReportFmcsScopeTest extends TestCase
         [$assetA] = $this->seedPendingAcceptanceOwnedBy($companyA);
         [$assetB] = $this->seedPendingAcceptanceOwnedBy($companyB);
 
-        $reporterA = User::factory()->canViewReports()->forCompany($companyA)->create();
+        $reporterA = User::factory()->viewAssets()->canViewReports()->forCompany($companyA)->create();
 
         $response = $this->actingAs($reporterA)
             ->get(route('reports/unaccepted_assets'))

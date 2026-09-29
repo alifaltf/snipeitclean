@@ -11,10 +11,14 @@ use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\ExpectationFailedException;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class BulkAssetCheckoutTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         // The target user must actually exist and be undeleted, or the
@@ -116,7 +120,7 @@ class BulkAssetCheckoutTest extends TestCase
         // authoritative. Omitting the field means unchecked, so every
         // selected asset ends up requestable=false regardless of its
         // prior state.
-        $this->actingAs(User::factory()->checkoutAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkoutAssets()->create())
             ->post(route('hardware.bulkcheckout.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'checkout_to_type' => 'user',
@@ -134,7 +138,7 @@ class BulkAssetCheckoutTest extends TestCase
         $nonRequestableAsset = Asset::factory()->create(['requestable' => 0]);
         $targetUser = User::factory()->create();
 
-        $this->actingAs(User::factory()->checkoutAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->checkoutAssets()->create())
             ->post(route('hardware.bulkcheckout.store'), [
                 'selected_assets' => [$requestableAsset->id, $nonRequestableAsset->id],
                 'checkout_to_type' => 'user',

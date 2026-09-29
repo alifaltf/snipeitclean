@@ -6,10 +6,14 @@ use App\Models\Asset;
 use App\Models\Company;
 use App\Models\Location;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class CompanyHierarchyTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_can_create_company_with_parent_id()
     {
         $parent = Company::factory()->create();

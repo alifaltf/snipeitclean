@@ -32,7 +32,9 @@ class BulkSuppliersController extends Controller
                 DestroySupplierAction::run(supplier: $supplier);
                 $success_count++;
             } catch (ItemStillHasAssets $e) {
-                $errors[] = trans('general.bulk_delete_associations.assoc_assets', ['asset_count' => (int) $supplier->assets_count, 'item' => trans('general.supplier'), 'item_name' => $supplier->name]);
+                // ERS Phase 5B1: the integrity count includes assets hidden by
+                // asset-category permissions, so do not show the number.
+                $errors[] = trans('general.bulk_delete_associations.assoc_assets_no_count', ['item_name' => $supplier->name, 'item' => trans('general.supplier')]);
             } catch (ItemStillHasMaintenances $e) {
                 $errors[] = trans('general.bulk_delete_associations.assoc_maintenances', ['asset_maintenances_count' => $supplier->asset_maintenances_count, 'item' => trans('general.supplier'), 'item_name' => $supplier->name]);
             } catch (ItemStillHasLicenses $e) {

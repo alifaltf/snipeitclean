@@ -7,10 +7,14 @@ use App\Models\Asset;
 use App\Models\LicenseSeat;
 use App\Models\User;
 use Illuminate\Support\Facades\Event;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class LicenseCheckinTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_checking_in_license_requires_correct_permission()
     {
         $this->actingAs(User::factory()->create())
@@ -63,7 +67,7 @@ class LicenseCheckinTest extends TestCase
             ->assignedToAsset($asset)
             ->create();
 
-        $actor = User::factory()->checkinLicenses()->create();
+        $actor = User::factory()->viewAssets()->checkinLicenses()->create();
 
         $this->actingAs($actor)
             ->post(route('licenses.checkin.save', $licenseSeat), [

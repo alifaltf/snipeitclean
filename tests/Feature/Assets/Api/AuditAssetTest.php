@@ -9,14 +9,18 @@ use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 #[Group('auditing')]
 class AuditAssetTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_permission_required_to_bulk_audit_assets()
     {
-        $this->actingAsForApi(User::factory()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
             ->postJson(route('api.asset.audit', Asset::factory()->create()))
             ->assertForbidden();
     }
@@ -31,7 +35,7 @@ class AuditAssetTest extends TestCase
     public function test_requires_permission_to_audit_asset()
     {
         $asset = Asset::factory()->create();
-        $this->actingAsForApi(User::factory()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
             ->postJson(route('api.asset.audit', $asset))
             ->assertForbidden();
     }
@@ -41,7 +45,7 @@ class AuditAssetTest extends TestCase
         $asset = Asset::factory()->create();
         $future = now()->addMonths(5)->toDateString();
 
-        $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson(route('api.asset.audit.legacy'), [
                 'asset_tag' => $asset->asset_tag,
                 'next_audit_date' => $future,
@@ -68,7 +72,7 @@ class AuditAssetTest extends TestCase
         $asset = Asset::factory()->create();
         $future = now()->addMonths(2)->toDateString();
 
-        $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson(route('api.asset.audit.legacy'), [
                 // Simulates the new quickscan form where audit_key is posted
                 // and the dropdown may remain on default.
@@ -93,7 +97,7 @@ class AuditAssetTest extends TestCase
         $asset = Asset::factory()->create(['serial' => 'SERIAL-ABC-123']);
         $future = now()->addMonths(2)->toDateString();
 
-        $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson(route('api.asset.audit.legacy'), [
                 'audit_by_field' => 'serial',
                 'audit_key' => $asset->serial,
@@ -116,7 +120,7 @@ class AuditAssetTest extends TestCase
         $now = now();
         $future = now()->addMonths(3)->toDateString();
 
-        $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson(route('api.asset.audit', $asset), [
                 'next_audit_date' => $future,
                 'note' => 'test',
@@ -152,7 +156,7 @@ class AuditAssetTest extends TestCase
 
         $asset = Asset::factory()->create(['next_audit_date' => null]);
 
-        $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson(route('api.asset.audit', $asset), [
                 'asset_tag' => $asset->asset_tag,
                 // this is the important part
@@ -170,7 +174,7 @@ class AuditAssetTest extends TestCase
     {
         $asset = Asset::factory()->create(['name' => 'My Asset Name']);
 
-        $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson(route('api.asset.audit.legacy'), [
                 'asset_tag' => $asset->asset_tag,
                 'clear_name' => '1',
@@ -185,7 +189,7 @@ class AuditAssetTest extends TestCase
     {
         $asset = Asset::factory()->create(['name' => 'My Asset Name']);
 
-        $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson(route('api.asset.audit.legacy'), [
                 'asset_tag' => $asset->asset_tag,
             ])
@@ -204,7 +208,7 @@ class AuditAssetTest extends TestCase
 
         $asset = Asset::factory()->create();
 
-        $response = $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->post(route('api.asset.audit', $asset->id), [
                 'note' => 'audit w/ photo',
                 'image' => UploadedFile::fake()->image('audit.jpg'),
@@ -230,7 +234,7 @@ class AuditAssetTest extends TestCase
 
         $asset = Asset::factory()->create();
 
-        $this->actingAsForApi(User::factory()->auditAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->auditAssets()->create())
             ->postJson(route('api.asset.audit', $asset->id), [
                 'note' => 'no photo',
             ])

@@ -5,10 +5,14 @@ namespace Tests\Feature\Account;
 use App\Models\Actionlog;
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class GetStoredEulaTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_authentication(): void
     {
         // Give the setup middleware a user so it doesn't short-circuit
@@ -38,7 +42,7 @@ class GetStoredEulaTest extends TestCase
      */
     public function test_end_user_can_reach_download_flow_for_their_own_accepted_eula(): void
     {
-        $endUser = User::factory()->create();
+        $endUser = User::factory()->viewAssets()->create();
         $asset = Asset::factory()->create();
         $filename = 'accepted-user-'.uniqid().'.pdf';
 
@@ -63,7 +67,7 @@ class GetStoredEulaTest extends TestCase
     public function test_end_user_cannot_download_someone_elses_eula(): void
     {
         $acceptingUser = User::factory()->create();
-        $otherEndUser = User::factory()->create();
+        $otherEndUser = User::factory()->viewAssets()->create();
         $asset = Asset::factory()->create();
         $filename = 'someone-elses-'.uniqid().'.pdf';
 
@@ -84,7 +88,7 @@ class GetStoredEulaTest extends TestCase
     public function test_user_with_users_view_permission_can_reach_download_flow_for_any_eula(): void
     {
         $acceptingUser = User::factory()->create();
-        $manager = User::factory()->viewUsers()->create();
+        $manager = User::factory()->viewAssets()->viewUsers()->create();
         $asset = Asset::factory()->create();
         $filename = 'manager-download-'.uniqid().'.pdf';
 

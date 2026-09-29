@@ -217,7 +217,7 @@ class AssetCategoryNavigationUiTest extends TestCase
     #[Test]
     public function asset_viewers_see_the_tree_and_others_do_not(): void
     {
-        $viewer = User::factory()->viewAssets()->create();
+        $viewer = $this->grantAssetCategoryView(User::factory()->viewAssets()->create(), $this->cat['leaf1']);
         $page = new HtmlPage($this->actingAs($viewer)->get(route('profile'))->assertOk()->getContent());
         $this->assertNotNull($this->node($page, $this->cat['leaf1']));
         $this->assertSame(0, $page->count('//li['.HtmlPage::hasClass(self::NODE).' and '.HtmlPage::hasClass('active').']'));

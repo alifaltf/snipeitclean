@@ -19,6 +19,7 @@ use App\Http\Transformers\SelectlistTransformer;
 use App\Models\AccessoryCheckout;
 use App\Models\Actionlog;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\AssetModel;
 use App\Models\CheckoutAcceptance;
 use App\Models\Company;
@@ -1169,7 +1170,8 @@ class AssetsController extends Controller
         }
 
         if ($request->filled('assigned_asset')) {
-            return Asset::withoutGlobalScopes()->where('id', '!=', $assetId)->find($request->input('assigned_asset'));
+            // ERS Phase 5B1: category View still applies to the target lookup.
+            return AssetCategoryViewScope::restrict(Asset::withoutGlobalScopes())->where('id', '!=', $assetId)->find($request->input('assigned_asset'));
         }
 
         if ($request->filled('assigned_location')) {
@@ -1312,7 +1314,8 @@ class AssetsController extends Controller
             $error_payload['target_type'] = 'location';
         } elseif (request('checkout_to_type') == 'asset') {
             // Resolve unscoped target first so FMCS mismatch can be handled explicitly.
-            $target = Asset::withoutGlobalScopes()->where('id', '!=', $asset_id)->find(request('assigned_asset'));
+            // ERS Phase 5B1: category View still applies to the target lookup.
+            $target = AssetCategoryViewScope::restrict(Asset::withoutGlobalScopes())->where('id', '!=', $asset_id)->find(request('assigned_asset'));
             // Override with the asset's location_id if it has one
             $asset->location_id = (($target) && (isset($target->location_id))) ? $target->location_id : '';
             $error_payload['target_id'] = $request->input('assigned_asset');

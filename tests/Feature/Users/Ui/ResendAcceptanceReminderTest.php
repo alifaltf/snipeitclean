@@ -6,15 +6,19 @@ use App\Mail\UnacceptedAssetReminderMail;
 use App\Models\CheckoutAcceptance;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ResendAcceptanceReminderTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_it_sends_acceptance_reminder_email_for_user_with_pending_acceptances(): void
     {
         Mail::fake();
 
-        $viewer = User::factory()->viewUsers()->create();
+        $viewer = User::factory()->viewAssets()->viewUsers()->create();
         $targetUser = User::factory()->create(['email' => 'target@example.com']);
 
         CheckoutAcceptance::factory()->pending()->count(2)->create([

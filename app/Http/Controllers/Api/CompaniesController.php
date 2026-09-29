@@ -8,6 +8,7 @@ use App\Http\Requests\FilterRequest;
 use App\Http\Requests\ImageUploadRequest;
 use App\Http\Transformers\CompaniesTransformer;
 use App\Http\Transformers\SelectlistTransformer;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Company;
 use App\Models\Setting;
 use Illuminate\Database\Eloquent\Collection;
@@ -221,7 +222,9 @@ class CompaniesController extends Controller
         $company = Company::findOrFail($id);
         $this->authorize('delete', $company);
 
-        if (! $company->isDeletable()) {
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        if (! AssetCategoryViewScope::withoutRestriction(fn () => $company->isDeletable())) {
             return response()
                 ->json(Helper::formatStandardApiResponse('error', null, trans('admin/companies/message.assoc_users')));
         }

@@ -7,6 +7,7 @@ use App\Http\Requests\ImageUploadRequest;
 use App\Models\Accessory;
 use App\Models\Actionlog;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Company;
 use App\Models\Component;
 use App\Models\Consumable;
@@ -231,7 +232,9 @@ class LocationsController extends Controller
     {
         $this->authorize('delete', Location::class);
 
-        $location = Location::withCount('assignedAssets as assigned_assets_count')
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        $location = AssetCategoryViewScope::withoutRestriction(fn () => Location::withCount('assignedAssets as assigned_assets_count')
             ->withCount('assets as assets_count')
             ->withCount('assignedAccessories as assigned_accessories_count')
             ->withCount('accessories as accessories_count')
@@ -240,7 +243,7 @@ class LocationsController extends Controller
             ->withCount('users as users_count')
             ->withCount('consumables as consumables_count')
             ->withCount('components as components_count')
-            ->find($locationId);
+            ->find($locationId));
 
         if (! $location) {
             return redirect()->to(route('locations.index'))->with('error', trans('admin/locations/message.does_not_exist'));
@@ -469,7 +472,9 @@ class LocationsController extends Controller
         $locations_raw_array = $request->input('ids');
 
         if ((is_array($locations_raw_array)) && (count($locations_raw_array) > 0)) {
-            $locations = Location::whereIn('id', $locations_raw_array)
+            // ERS Phase 5B1: integrity check, so count every associated asset,
+            // including ones hidden from this user by asset-category permissions.
+            $locations = AssetCategoryViewScope::withoutRestriction(fn () => Location::whereIn('id', $locations_raw_array)
                 ->withCount('assignedAssets as assigned_assets_count')
                 ->withCount('assets as assets_count')
                 ->withCount('assignedAccessories as assigned_accessories_count')
@@ -478,7 +483,7 @@ class LocationsController extends Controller
                 ->withCount('children as children_count')
                 ->withCount('users as users_count')
                 ->withCount('consumables as consumables_count')
-                ->withCount('components as components_count')->get();
+                ->withCount('components as components_count')->get());
 
             $success_count = 0;
             $error_count = 0;

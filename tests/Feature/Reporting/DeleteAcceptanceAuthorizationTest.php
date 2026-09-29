@@ -6,10 +6,14 @@ use App\Models\Asset;
 use App\Models\CheckoutAcceptance;
 use App\Models\Company;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class DeleteAcceptanceAuthorizationTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_user_without_reports_view_cannot_delete_acceptance()
     {
         $acceptance = CheckoutAcceptance::factory()->pending()->create();
@@ -28,7 +32,7 @@ class DeleteAcceptanceAuthorizationTest extends TestCase
         [$companyA] = Company::factory()->count(2)->create();
 
         $asset = Asset::factory()->create(['company_id' => $companyA->id]);
-        $reporter = User::factory()->canViewReports()->forCompany($companyA)->create();
+        $reporter = User::factory()->viewAssets()->canViewReports()->forCompany($companyA)->create();
         $acceptance = CheckoutAcceptance::factory()->pending()->for($asset, 'checkoutable')->create();
 
         $this->actingAs($reporter)
@@ -102,7 +106,7 @@ class DeleteAcceptanceAuthorizationTest extends TestCase
         [$companyA, $companyB] = Company::factory()->count(2)->create();
 
         $assetB = Asset::factory()->create(['company_id' => $companyB->id]);
-        $reporter = User::factory()->canViewReports()->forCompany($companyA)->create();
+        $reporter = User::factory()->viewAssets()->canViewReports()->forCompany($companyA)->create();
         $acceptance = CheckoutAcceptance::factory()->pending()->for($assetB, 'checkoutable')->create();
 
         $this->actingAs($reporter)

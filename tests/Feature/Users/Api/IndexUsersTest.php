@@ -8,10 +8,14 @@ use App\Models\Location;
 use App\Models\Maintenance;
 use App\Models\User;
 use Illuminate\Testing\Fluent\AssertableJson;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class IndexUsersTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission()
     {
         $this->actingAsForApi(User::factory()->create())
@@ -78,7 +82,7 @@ class IndexUsersTest extends TestCase
             'completed_at' => now(),
         ]);
 
-        $response = $this->actingAsForApi(User::factory()->viewUsers()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->viewUsers()->create())
             ->getJson(route('api.users.index', [
                 'assigned_maintenances_count' => 2,
             ]))

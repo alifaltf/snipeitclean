@@ -169,6 +169,7 @@ class AssetCategoryFilterApiTest extends TestCase
         $inA = $this->assetIn($this->cat['leaf1'], ['company_id' => $companyA->id]);
         $inB = $this->assetIn($this->cat['leaf1'], ['company_id' => $companyB->id]);
         $userInA = $companyA->users()->save(User::factory()->viewAssets()->make());
+        $userInA = $this->grantAssetCategoryView($userInA, $this->cat['leaf1']);
 
         $this->settings->enableMultipleFullCompanySupport();
 

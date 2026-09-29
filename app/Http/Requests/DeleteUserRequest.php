@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\AssetCategoryViewScope;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -30,7 +31,9 @@ class DeleteUserRequest extends FormRequest
                 'admin_id' => auth()->id(),
                 'managed_users' => $user_to_delete->managesUsers()->count(),
                 'managed_locations' => $user_to_delete->managedLocations()->count(),
-                'assigned_assets' => $user_to_delete->assets()->count(),
+                // ERS Phase 5B1: integrity check, so count every assigned
+                // asset, including ones hidden by asset-category permissions.
+                'assigned_assets' => AssetCategoryViewScope::withoutRestriction(fn () => $user_to_delete->assets()->count()),
                 'assigned_licenses' => $user_to_delete->licenses()->count(),
                 'assigned_accessories' => $user_to_delete->accessories()->count(),
                 'deleted_at' => $user_to_delete->deleted_at,
@@ -79,7 +82,9 @@ class DeleteUserRequest extends FormRequest
                 'managed_locations.in' => trans_choice('admin/users/message.error.delete_has_locations_var', $user_to_delete->managedLocations()->count(), ['count' => $user_to_delete->managedLocations()->count()]),
 
                 // assigned_assets is not 0
-                'assigned_assets.in' => trans_choice('admin/users/message.error.delete_has_assets_var', $user_to_delete->assets()->count(), ['count' => $user_to_delete->assets()->count()]),
+                // (ERS Phase 5B1: the number shown is only the assets this user
+                // may view, at least one, so hidden assets are never counted.)
+                'assigned_assets.in' => trans_choice('admin/users/message.error.delete_has_assets_var', max(1, $user_to_delete->assets()->count()), ['count' => max(1, $user_to_delete->assets()->count())]),
 
                 // assigned licenses is not 0
                 'assigned_licenses.in' => trans_choice('admin/users/message.error.delete_has_licenses_var', $user_to_delete->licenses()->count(), ['count' => $user_to_delete->licenses()->count()]),

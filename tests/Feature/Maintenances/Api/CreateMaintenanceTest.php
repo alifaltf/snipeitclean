@@ -10,10 +10,14 @@ use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class CreateMaintenanceTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission_to_create_maintenance()
     {
         $this->actingAsForApi(User::factory()->create())
@@ -102,7 +106,7 @@ class CreateMaintenanceTest extends TestCase
     public function test_bulk_create_skips_inaccessible_assets_under_fmcs()
     {
         [$companyA, $companyB] = Company::factory()->count(2)->create();
-        $actor = $companyA->users()->save(User::factory()->editAssets()->make());
+        $actor = $companyA->users()->save(User::factory()->editAssets()->viewAssets()->make());
 
         $this->settings->enableMultipleFullCompanySupport();
 

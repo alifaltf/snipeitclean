@@ -133,8 +133,10 @@ class SuppliersController extends Controller
         try {
             DestroySupplierAction::run(supplier: $supplier);
         } catch (ItemStillHasAssets $e) {
-            return redirect()->route('suppliers.index')->with('error', trans('general.bulk_delete_associations.assoc_assets', [
-                'asset_count' => (int) $supplier->assets_count, 'item' => trans('general.supplier'),
+            // ERS Phase 5B1: the integrity count includes assets hidden by
+            // asset-category permissions, so do not show the number.
+            return redirect()->route('suppliers.index')->with('error', trans('general.bulk_delete_associations.assoc_assets_no_count', [
+                'item_name' => $supplier->name, 'item' => trans('general.supplier'),
             ]));
         } catch (ItemStillHasMaintenances $e) {
             return redirect()->route('suppliers.index')->with('error', trans('general.bulk_delete_associations.assoc_maintenances', [

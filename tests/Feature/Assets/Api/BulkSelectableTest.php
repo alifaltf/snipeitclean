@@ -4,6 +4,7 @@ namespace Tests\Feature\Assets\Api;
 
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -17,6 +18,9 @@ use Tests\TestCase;
  */
 class BulkSelectableTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_clean_unassigned_asset_supports_edit_maintenance_checkout_audit_delete_labels()
     {
         $asset = Asset::factory()->create();

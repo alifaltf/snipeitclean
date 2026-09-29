@@ -11,13 +11,17 @@ use App\Models\Statuslabel;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetCheckinTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_checking_in_asset_requires_correct_permission()
     {
-        $this->actingAsForApi(User::factory()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->create())
             ->postJson(route('api.asset.checkin', Asset::factory()->assignedToUser()->create()))
             ->assertForbidden();
     }
@@ -53,7 +57,7 @@ class AssetCheckinTest extends TestCase
 
         $currentTimestamp = now();
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkin', $asset), [
                 'name' => 'Changed Name',
                 'status_id' => $status->id,
@@ -85,7 +89,7 @@ class AssetCheckinTest extends TestCase
             'rtd_location_id' => $rtdLocation->id,
         ]);
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkin', $asset->id));
 
         $this->assertTrue($asset->refresh()->location()->is($rtdLocation));
@@ -97,7 +101,7 @@ class AssetCheckinTest extends TestCase
         $location = Location::factory()->create();
         $asset = Asset::factory()->assignedToUser()->create();
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkin', $asset), [
                 'location_id' => $location->id,
                 'update_default_location' => true,
@@ -114,7 +118,7 @@ class AssetCheckinTest extends TestCase
 
         $this->assertNotNull($asset->licenseseats->first()->assigned_to);
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkin', $asset));
 
         $this->assertNull($asset->refresh()->licenseseats->first()->assigned_to);
@@ -137,7 +141,7 @@ class AssetCheckinTest extends TestCase
             'rtd_location_id' => $originalLocation->id,
         ]);
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkin', $parentAsset), [
                 'location_id' => $originalLocation->id,
             ])
@@ -156,7 +160,7 @@ class AssetCheckinTest extends TestCase
             'location_id' => 0,
         ]);
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkin', $asset));
 
         $this->assertNull($asset->refresh()->rtd_location_id);
@@ -179,7 +183,7 @@ class AssetCheckinTest extends TestCase
     {
         Event::fake();
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkin', Asset::factory()->assignedToUser()->create()), [
                 // time is appended to the provided date in controller
                 'checkin_at' => '2023-01-02',
@@ -196,7 +200,7 @@ class AssetCheckinTest extends TestCase
     {
         $asset = Asset::factory()->assignedToUser()->create(['name' => 'My Asset Name']);
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkin', $asset), ['clear_name' => '1'])
             ->assertOk()
             ->assertStatusMessageIs('success');
@@ -208,7 +212,7 @@ class AssetCheckinTest extends TestCase
     {
         $asset = Asset::factory()->assignedToUser()->create(['name' => 'My Asset Name']);
 
-        $this->actingAsForApi(User::factory()->checkinAssets()->create())
+        $this->actingAsForApi(User::factory()->viewAssets()->checkinAssets()->create())
             ->postJson(route('api.asset.checkin', $asset))
             ->assertOk()
             ->assertStatusMessageIs('success');

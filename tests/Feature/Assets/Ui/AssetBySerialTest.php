@@ -4,10 +4,14 @@ namespace Tests\Feature\Assets\Ui;
 
 use App\Models\Asset;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class AssetBySerialTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_redirects_to_asset_when_serial_in_path()
     {
         $asset = Asset::factory()->create(['serial' => 'TEST-SERIAL-123']);
@@ -41,8 +45,10 @@ class AssetBySerialTest extends TestCase
     {
         Asset::factory()->create(['serial' => 'TEST-SERIAL-789']);
 
+        // ERS Phase 5B1: without assets.view the record is hidden before the
+        // permission check runs, so the answer is a secure not-found, not 403.
         $this->actingAs(User::factory()->create())
             ->get(route('findbyserial/hardware', ['any' => 'TEST-SERIAL-789']))
-            ->assertForbidden();
+            ->assertRedirect();
     }
 }

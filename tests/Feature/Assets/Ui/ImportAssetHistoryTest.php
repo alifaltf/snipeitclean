@@ -8,11 +8,14 @@ use App\Models\Import;
 use App\Models\User;
 use Tests\Support\Importing\AssetHistoryImportFileBuilder;
 use Tests\Support\Importing\CleansUpImportFiles;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ImportAssetHistoryTest extends TestCase
 {
     use CleansUpImportFiles;
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
 
     public function test_legacy_get_history_route_redirects_to_importer(): void
     {
@@ -87,7 +90,7 @@ class ImportAssetHistoryTest extends TestCase
 
     public function test_asset_history_import_creates_actionlogs_and_assigns_user(): void
     {
-        $actor = User::factory()->canImport()->create();
+        $actor = User::factory()->viewAssets()->canImport()->create();
         $target = User::factory()->create(['username' => 'target.user']);
         $asset = Asset::factory()->create([
             'asset_tag' => 'AHIST-1',
@@ -143,7 +146,7 @@ class ImportAssetHistoryTest extends TestCase
 
     public function test_asset_history_import_does_not_reassign_when_checkin_is_past(): void
     {
-        $actor = User::factory()->canImport()->create();
+        $actor = User::factory()->viewAssets()->canImport()->create();
         $target = User::factory()->create(['username' => 'past.user']);
         $asset = Asset::factory()->create([
             'asset_tag' => 'AHIST-2',

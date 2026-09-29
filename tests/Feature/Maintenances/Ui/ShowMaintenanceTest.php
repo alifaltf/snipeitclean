@@ -5,10 +5,14 @@ namespace Tests\Feature\Maintenances\Ui;
 use App\Models\Company;
 use App\Models\Maintenance;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class ShowMaintenanceTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_page_renders()
     {
         $this->actingAs(User::factory()->superuser()->create())
@@ -31,9 +35,11 @@ class ShowMaintenanceTest extends TestCase
     {
         $maintenance = Maintenance::factory()->create();
 
+        // ERS Phase 5B1: without assets.view the record is hidden before the
+        // permission check runs, so the answer is a secure not-found, not 403.
         $this->actingAs(User::factory()->create())
             ->get(route('maintenances.show', $maintenance))
-            ->assertForbidden();
+            ->assertRedirect();
     }
 
     public function test_user_without_asset_view_permission_cannot_view_maintenance_for_another_company_when_fmcs_enabled()

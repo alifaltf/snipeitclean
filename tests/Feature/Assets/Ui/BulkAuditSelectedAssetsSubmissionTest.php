@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Group;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -25,6 +26,9 @@ use Tests\TestCase;
 #[Group('auditing')]
 class BulkAuditSelectedAssetsSubmissionTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_permission_required_to_submit(): void
     {
         $this->actingAs(User::factory()->create())
@@ -46,7 +50,7 @@ class BulkAuditSelectedAssetsSubmissionTest extends TestCase
     {
         $assets = Asset::factory()->count(3)->create();
 
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->post(route('hardware.bulk-audit.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'note' => 'bulk audit test',
@@ -68,7 +72,7 @@ class BulkAuditSelectedAssetsSubmissionTest extends TestCase
     {
         $assets = Asset::factory()->count(2)->create();
 
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->post(route('hardware.bulk-audit.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'next_audit_date' => '2099-01-15',
@@ -88,7 +92,7 @@ class BulkAuditSelectedAssetsSubmissionTest extends TestCase
         $location = Location::factory()->create();
         $assets = Asset::factory()->count(2)->create();
 
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->post(route('hardware.bulk-audit.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'location_id' => $location->id,
@@ -111,7 +115,7 @@ class BulkAuditSelectedAssetsSubmissionTest extends TestCase
         $auditLocation = Location::factory()->create();
         $assets = Asset::factory()->count(2)->create(['location_id' => $originalLocation->id]);
 
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->post(route('hardware.bulk-audit.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'location_id' => $auditLocation->id,
@@ -145,7 +149,7 @@ class BulkAuditSelectedAssetsSubmissionTest extends TestCase
         Storage::fake();
         $assets = Asset::factory()->count(2)->create();
 
-        $this->actingAs(User::factory()->auditAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->auditAssets()->create())
             ->post(route('hardware.bulk-audit.store'), [
                 'selected_assets' => $assets->pluck('id')->toArray(),
                 'image' => UploadedFile::fake()->image('audit.png'),

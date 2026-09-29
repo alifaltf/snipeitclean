@@ -7,6 +7,7 @@ use App\Models\Maintenance;
 use App\Models\MaintenanceType;
 use App\Models\Supplier;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -24,6 +25,9 @@ use Tests\TestCase;
  */
 class MaintenanceReportTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_permission_to_export()
     {
         $this->actingAs(User::factory()->create())
@@ -51,7 +55,7 @@ class MaintenanceReportTest extends TestCase
             'completed_at' => '2021-01-10 12:00:00',
         ]);
 
-        $content = $this->actingAs(User::factory()->canViewReports()->create())
+        $content = $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->get(route('reports/export/maintenances'))
             ->assertOk()
             ->streamedContent();
@@ -69,7 +73,7 @@ class MaintenanceReportTest extends TestCase
         $type = MaintenanceType::factory()->create(['name' => 'Firmware-Upgrade-Test']);
         Maintenance::factory()->create(['maintenance_type_id' => $type->id]);
 
-        $content = $this->actingAs(User::factory()->canViewReports()->create())
+        $content = $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->get(route('reports/export/maintenances'))
             ->assertOk()
             ->streamedContent();
@@ -90,7 +94,7 @@ class MaintenanceReportTest extends TestCase
             'completed_by' => $completer->id,
         ]);
 
-        $content = $this->actingAs(User::factory()->canViewReports()->create())
+        $content = $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->get(route('reports/export/maintenances'))
             ->assertOk()
             ->streamedContent();
@@ -113,7 +117,7 @@ class MaintenanceReportTest extends TestCase
             'supplier_id' => null,
         ]);
 
-        $content = $this->actingAs(User::factory()->canViewReports()->create())
+        $content = $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->get(route('reports/export/maintenances'))
             ->assertOk()
             ->streamedContent();
@@ -126,7 +130,7 @@ class MaintenanceReportTest extends TestCase
         $supplier = Supplier::factory()->create(['name' => 'Contoso-Repairs-Inc']);
         Maintenance::factory()->create(['supplier_id' => $supplier->id]);
 
-        $content = $this->actingAs(User::factory()->canViewReports()->create())
+        $content = $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->get(route('reports/export/maintenances'))
             ->assertOk()
             ->streamedContent();
@@ -146,7 +150,7 @@ class MaintenanceReportTest extends TestCase
             'expected_completion_date' => '2021-01-31 00:00:00',
         ]);
 
-        $content = $this->actingAs(User::factory()->canViewReports()->create())
+        $content = $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->get(route('reports/export/maintenances'))
             ->assertOk()
             ->streamedContent();
@@ -163,7 +167,7 @@ class MaintenanceReportTest extends TestCase
             'notes' => 'A distinctive-note-blob-1729',
         ]);
 
-        $content = $this->actingAs(User::factory()->canViewReports()->create())
+        $content = $this->actingAs(User::factory()->viewAssets()->canViewReports()->create())
             ->get(route('reports/export/maintenances'))
             ->assertOk()
             ->streamedContent();

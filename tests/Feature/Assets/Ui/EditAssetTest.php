@@ -10,14 +10,18 @@ use App\Models\StatusLabel;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class EditAssetTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_permission_required_to_view_edit_asset_page()
     {
         $asset = Asset::factory()->create();
-        $this->actingAs(User::factory()->create())
+        $this->actingAs(User::factory()->viewAssets()->create())
             ->get(route('hardware.edit', $asset))
             ->assertForbidden();
     }
@@ -25,7 +29,7 @@ class EditAssetTest extends TestCase
     public function test_page_can_be_accessed(): void
     {
         $asset = Asset::factory()->create();
-        $user = User::factory()->editAssets()->create();
+        $user = User::factory()->viewAssets()->editAssets()->create();
         $response = $this->actingAs($user)->get(route('hardware.edit', $asset));
         $response->assertStatus(200);
     }
@@ -139,7 +143,9 @@ class EditAssetTest extends TestCase
 
         $asset->model()->forceDelete();
 
-        $this->actingAs(User::factory()->viewAssets()->editAssets()->create())
+        // ERS Phase 5B1: an asset whose model/category cannot be resolved has no
+        // authorised category, so only a Super User can still reach it.
+        $this->actingAs(User::factory()->superuser()->create())
             ->from(route('hardware.edit', $asset))
             ->put(route('hardware.update', $asset), [
                 'redirect_option' => 'index',

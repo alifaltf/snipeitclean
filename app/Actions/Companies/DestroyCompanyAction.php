@@ -9,6 +9,7 @@ use App\Exceptions\ItemStillHasComponents;
 use App\Exceptions\ItemStillHasConsumables;
 use App\Exceptions\ItemStillHasLicenses;
 use App\Exceptions\ItemStillHasUsers;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Company;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -26,7 +27,9 @@ class DestroyCompanyAction
      */
     public static function run(Company $company): bool
     {
-        $company->loadCount([
+        // ERS Phase 5B1: integrity check, so count every associated asset,
+        // including ones hidden from this user by asset-category permissions.
+        AssetCategoryViewScope::withoutRestriction(fn () => $company->loadCount([
             'assets as assets_count',
             'accessories as accessories_count',
             'licenses as licenses_count',
@@ -37,7 +40,7 @@ class DestroyCompanyAction
             // companies.id and collides with Eloquent's laravel_reserved_0
             // alias). Match that here or the count aliases fight the scope.
             'children as children_count' => fn ($q) => $q->withoutGlobalScopes(),
-        ]);
+        ]));
 
         if ($company->assets_count > 0) {
             throw new ItemStillHasAssets($company);

@@ -8,10 +8,14 @@ use App\Models\CheckoutAcceptance;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class SentReminderAuthorizationTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_user_without_reports_view_cannot_send_reminder()
     {
         Mail::fake();
@@ -40,7 +44,7 @@ class SentReminderAuthorizationTest extends TestCase
 
         $assignee = User::factory()->forCompany($companyA)->create(['email' => 'assignee@example.test']);
         $asset = Asset::factory()->create(['company_id' => $companyA->id]);
-        $reporter = User::factory()->canViewReports()->forCompany($companyA)->create();
+        $reporter = User::factory()->viewAssets()->canViewReports()->forCompany($companyA)->create();
         $acceptance = CheckoutAcceptance::factory()
             ->pending()
             ->for($asset, 'checkoutable')

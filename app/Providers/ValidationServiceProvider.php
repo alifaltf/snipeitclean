@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\AssetCategoryViewScope;
 use App\Models\CustomField;
 use App\Models\Location;
 use App\Models\Setting;
@@ -105,10 +106,17 @@ class ValidationServiceProvider extends ServiceProvider
             }
             $column = $parameters[1] ?? 'id';
 
-            return DB::table($parameters[0])
+            $query = DB::table($parameters[0])
                 ->where($column, '=', $value)
-                ->whereNull('deleted_at')
-                ->exists();
+                ->whereNull('deleted_at');
+
+            // ERS Phase 5B1: an asset the current user may not view fails
+            // exactly like one that does not exist.
+            if ($parameters[0] === 'assets' && ($viewable = AssetCategoryViewScope::viewableAssetIds()) !== null) {
+                $query->whereIn('assets.id', $viewable);
+            }
+
+            return $query->exists();
         });
 
         /**

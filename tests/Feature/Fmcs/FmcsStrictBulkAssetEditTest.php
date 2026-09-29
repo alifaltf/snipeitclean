@@ -6,6 +6,7 @@ use App\Models\Asset;
 use App\Models\Company;
 use App\Models\Setting;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -21,6 +22,9 @@ use Tests\TestCase;
  */
 class FmcsStrictBulkAssetEditTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_clearing_company_is_rejected_for_companied_non_superuser()
     {
         // Locked in so a future refactor of the bulk controller cannot
@@ -84,7 +88,7 @@ class FmcsStrictBulkAssetEditTest extends TestCase
         $this->settings->disableFloaterMode();
 
         $company = Company::factory()->create();
-        $actor = $company->users()->save(User::factory()->editAssets()->create());
+        $actor = $company->users()->save(User::factory()->editAssets()->viewAssets()->create());
         $target = Asset::factory()->create([
             'company_id' => $company->id,
             'notes' => 'before',

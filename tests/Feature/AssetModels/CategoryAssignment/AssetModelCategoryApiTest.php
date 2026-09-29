@@ -4,6 +4,7 @@ namespace Tests\Feature\AssetModels\CategoryAssignment;
 
 use App\Models\AssetModel;
 use App\Models\Category;
+use App\Models\User;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Feature\Categories\Hierarchy\CreatesCategoryHierarchy;
 use Tests\TestCase;
@@ -91,9 +92,9 @@ class AssetModelCategoryApiTest extends TestCase
     // Category select lists
     // ---------------------------------------------------------------
 
-    private function selectlistIds(string $type): array
+    private function selectlistIds(string $type, ?User $user = null): array
     {
-        return collect($this->actingAsForApi($this->ordinaryAdmin())
+        return collect($this->actingAsForApi($user ?? $this->ordinaryAdmin())
             ->getJson(route('api.categories.selectlist', ['item_type' => $type]))
             ->assertOk()
             ->json('results'))
@@ -111,11 +112,16 @@ class AssetModelCategoryApiTest extends TestCase
         $deleted = $this->finalCategory('Retired');
         $deleted->delete();
 
-        $ids = $this->selectlistIds('asset');
+        // ERS Phase 5B1: the admin needs View grants to see asset categories.
+        $admin = $this->grantAssetCategoryView($this->ordinaryAdmin(), $laptop, $loose);
+        $ids = $this->selectlistIds('asset', $admin);
 
         $this->assertEqualsCanonicalizing([$laptop->id, $loose->id], $ids);
         $this->assertNotContains($fixed->id, $ids);
         $this->assertNotContains($hardware->id, $ids);
+
+        // ...and only the ones granted to them.
+        $this->assertSame([$laptop->id], $this->selectlistIds('asset', $this->grantAssetCategoryView($this->ordinaryAdmin(), $laptop)));
     }
 
     #[Test]

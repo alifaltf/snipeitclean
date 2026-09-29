@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Models\License;
 use App\Models\LicenseSeat;
 use App\Models\User;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 /**
@@ -20,6 +21,9 @@ use Tests\TestCase;
  */
 class UserItemsPaginationTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_assets_endpoint_paginates_rows_and_reports_accurate_metadata(): void
     {
         $user = User::factory()->create();
@@ -133,7 +137,7 @@ class UserItemsPaginationTest extends TestCase
             'accept_signature' => 'sig',
         ]);
 
-        $response = $this->actingAsForApi(User::factory()->viewUsers()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->viewUsers()->create())
             ->getJson(route('api.user.eulas', ['user' => $user->id, 'limit' => 2, 'page' => 2]))
             ->assertOk()
             ->json();

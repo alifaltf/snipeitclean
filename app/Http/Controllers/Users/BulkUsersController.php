@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Accessory;
 use App\Models\Actionlog;
 use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\Company;
 use App\Models\Component;
 use App\Models\Consumable;
@@ -402,7 +403,14 @@ class BulkUsersController extends Controller
         }
 
         $users = User::whereIn('id', $user_raw_array)->get();
-        $assets = Asset::whereIn('assigned_to', $user_raw_array)->where('assigned_type', User::class)->get();
+        // ERS Phase 5B1: find every asset assigned to these users, including
+        // ones hidden from this admin by asset-category permissions, and
+        // refuse (rather than silently leave them assigned to a deleted user)
+        // when any of them is hidden.
+        $assets = AssetCategoryViewScope::withoutRestriction(fn () => Asset::whereIn('assigned_to', $user_raw_array)->where('assigned_type', User::class)->get());
+        if ($assets->isNotEmpty() && Asset::whereIn('id', $assets->pluck('id'))->count() !== $assets->count()) {
+            return redirect()->route('users.index')->with('error', trans('general.insufficient_permissions'));
+        }
         $accessoryUserRows = DB::table('accessories_checkout')->where('assigned_type', User::class)->whereIn('assigned_to', $user_raw_array)->get();
         $licenses = DB::table('license_seats')->whereIn('assigned_to', $user_raw_array)->get();
         $consumableUserRows = DB::table('consumables_users')->whereIn('assigned_to', $user_raw_array)->get();
@@ -542,7 +550,16 @@ class BulkUsersController extends Controller
 
         // Get the users
         $merge_into_user = User::find($request->input('merge_into_id'));
-        $users_to_merge = User::whereIn('id', $user_ids_to_merge)->with('assets', 'manager', 'userlog', 'licenses', 'consumables', 'accessories', 'managedLocations', 'uploads', 'acceptances')->get();
+        // ERS Phase 5B1: load everything the merged users own, including
+        // assets (and their history/acceptances) hidden from this admin by
+        // asset-category permissions, so nothing is left behind on a deleted
+        // user. Merging users who hold assets this admin may not view is
+        // refused below.
+        $users_to_merge = AssetCategoryViewScope::withoutRestriction(fn () => User::whereIn('id', $user_ids_to_merge)->with('assets', 'manager', 'userlog', 'licenses', 'consumables', 'accessories', 'managedLocations', 'uploads', 'acceptances')->get());
+        $mergedAssetIds = $users_to_merge->pluck('assets')->flatten()->pluck('id');
+        if ($mergedAssetIds->isNotEmpty() && Asset::whereIn('id', $mergedAssetIds)->count() !== $mergedAssetIds->count()) {
+            return redirect()->route('users.index')->with('error', trans('general.insufficient_permissions'));
+        }
         $admin = User::find(auth()->id());
 
         if (! auth()->user()->can('canEditAuthFields', $merge_into_user) || ! auth()->user()->can('editableOnDemo')) {

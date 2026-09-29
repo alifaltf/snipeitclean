@@ -10,10 +10,14 @@ use App\Models\LicenseSeat;
 use App\Models\Statuslabel;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class BulkDeleteUsersTest extends TestCase
 {
+    // ERS Phase 5B1: upstream test written before asset-category permissions.
+    use UsesLegacyAssetCategoryCompatibility;
+
     public function test_requires_correct_permission()
     {
         $this->actingAs(User::factory()->create())
@@ -141,7 +145,7 @@ class BulkDeleteUsersTest extends TestCase
         $lonelyAsset = $this->assignAssetToUser($userB);
         $assetForUserC = $this->assignAssetToUser($userC);
 
-        $this->actingAs(User::factory()->editUsers()->checkinAssets()->create())
+        $this->actingAs(User::factory()->viewAssets()->editUsers()->checkinAssets()->create())
             ->post(route('users/bulksave'), [
                 'ids' => [
                     $userA->id,
