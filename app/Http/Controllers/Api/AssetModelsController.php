@@ -16,6 +16,7 @@ use App\Models\AssetModel;
 use App\Models\Setting;
 use App\Services\AssetCategoryAccess;
 use App\Services\AssetCategoryPermissionService;
+use App\Services\AssetCategoryWriteAuthorizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -305,7 +306,7 @@ class AssetModelsController extends Controller
      * @since [v4.0.16]
      * @see SelectlistTransformer
      */
-    public function selectlist(Request $request): array
+    public function selectlist(Request $request, ?string $operation = null): array
     {
 
         $this->authorize('view.selectlists');
@@ -320,11 +321,23 @@ class AssetModelsController extends Controller
 
         $settings = Setting::getSettings();
 
-        // ERS Phase 5B1: category-restricted users only get models from asset
-        // categories they may view, so model options never reveal others.
-        $access = app(AssetCategoryPermissionService::class)->forCurrentUser();
-        if ($access !== null) {
-            $assetmodels = $assetmodels->whereIn('models.category_id', $access->categoryIds(AssetCategoryAccess::VIEW));
+        if ($operation === null) {
+            // ERS Phase 5B1: the general picker only offers models from asset
+            // categories the user may VIEW, so options never reveal others.
+            $access = app(AssetCategoryPermissionService::class)->forCurrentUser();
+            if ($access !== null) {
+                $assetmodels = $assetmodels->whereIn('models.category_id', $access->categoryIds(AssetCategoryAccess::VIEW));
+            }
+        } else {
+            // ERS Phase 5B2: the asset create / edit pickers use exactly the
+            // rule AuthorisedAssetModel enforces server-side: valid targets
+            // (live models in live final asset categories, for everyone)
+            // whose category allows category Create / category Edit. View is
+            // NOT required here. Filtered in the query, before pagination.
+            // The route only admits 'create' or 'update'.
+            $assetmodels = $assetmodels->whereIn('models.category_id', app(AssetCategoryWriteAuthorizer::class)->targetCategoryIds(
+                $operation === 'create' ? AssetCategoryAccess::CREATE : AssetCategoryAccess::UPDATE
+            ));
         }
 
         if ($request->filled('search')) {

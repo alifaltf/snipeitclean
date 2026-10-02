@@ -7,8 +7,10 @@ use App\Http\Requests\Traits\MayContainCustomFields;
 use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\Setting;
+use App\Rules\AuthorisedAssetModel;
 use App\Rules\UniqueUndeleted;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class CreateMultipleAssetRequest extends ImageUploadRequest // should I extend from StoreAssetRequest? FIXME OR TODO OR THINKME
@@ -20,7 +22,10 @@ class CreateMultipleAssetRequest extends ImageUploadRequest // should I extend f
      */
     public function authorize(): bool
     {
-        return true; // TODO - should I do the auth check here?
+        // ERS Phase 5B2: refuse users without global assets.create with the
+        // normal 403 BEFORE validation, so the category-aware model_id rule
+        // never answers for them (the controller re-checks as before).
+        return Gate::allows('create', Asset::class);
     }
 
     protected function prepareForValidation()
@@ -80,6 +85,10 @@ class CreateMultipleAssetRequest extends ImageUploadRequest // should I extend f
         } else {
             $serial_rules[] = 'nullable';
         }
+
+        // ERS Phase 5B2: the model must be one the user may create assets
+        // with (category Create on its final category).
+        $modelRules['model_id'][] = AuthorisedAssetModel::forCreate();
 
         return array_merge($modelRules, [
             'serials.*' => $serial_rules,

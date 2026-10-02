@@ -10,6 +10,8 @@ use App\Models\Component;
 use App\Models\License;
 use App\Models\LicenseSeat;
 use App\Models\Setting;
+use App\Services\AssetCategoryAccess;
+use App\Services\AssetCategoryWriteAuthorizer;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Gate;
@@ -171,23 +173,35 @@ class AssetsTransformer
             $array['custom_fields'] = new \stdClass; // HACK to force generation of empty object instead of empty list
         }
 
+        // ERS Phase 5B2: the record actions (clone, restore, update, delete)
+        // are only offered when the asset's category also allows them, using
+        // the SAME rules as the endpoints: canClone() for clone and the
+        // restoreRecord ability for restore. The rows are already
+        // company-scoped and their models eager loaded, so this adds no
+        // per-row query. Other actions are unchanged.
+        $writes = app(AssetCategoryWriteAuthorizer::class);
+        $canClone = $writes->canClone($asset);
+        $canRestore = $asset->deleted_at != '' && Gate::allows('restoreRecord', $asset);
+        $canEdit = $writes->allowsAsset(AssetCategoryAccess::UPDATE, $asset);
+        $canDelete = $writes->allowsAsset(AssetCategoryAccess::DELETE, $asset);
+
         $permissions_array['available_actions'] = [
             'checkout' => ($asset->deleted_at == '' && Gate::allows('checkout', Asset::class)) ? true : false,
             'checkin' => ($asset->deleted_at == '' && Gate::allows('checkin', Asset::class)) ? true : false,
-            'clone' => Gate::allows('create', Asset::class) ? true : false,
-            'restore' => ($asset->deleted_at != '' && Gate::allows('create', Asset::class)) ? true : false,
-            'update' => ($asset->deleted_at == '' && Gate::allows('update', Asset::class)) ? true : false,
+            'clone' => $canClone,
+            'restore' => $canRestore,
+            'update' => ($asset->deleted_at == '' && Gate::allows('update', Asset::class) && $canEdit) ? true : false,
             'audit' => Gate::allows('audit', Asset::class) ? true : false,
-            'delete' => ($asset->deleted_at == '' && $asset->assigned_to == '' && Gate::allows('delete', Asset::class) && ($asset->deleted_at == '')) ? true : false,
+            'delete' => ($asset->deleted_at == '' && $asset->assigned_to == '' && Gate::allows('delete', Asset::class) && ($asset->deleted_at == '') && $canDelete) ? true : false,
             'bulk_selectable' => [
-                'edit' => ($asset->deleted_at == '' && Gate::allows('update', Asset::class)),
+                'edit' => ($asset->deleted_at == '' && Gate::allows('update', Asset::class) && $canEdit),
                 'maintenance' => ($asset->deleted_at == '' && Gate::allows('update', Asset::class)),
                 'checkout' => ($asset->deleted_at == '' && ! $asset->assigned_to && Gate::allows('checkout', Asset::class)),
                 'checkin' => ($asset->deleted_at == '' && $asset->assigned_to && Gate::allows('checkin', Asset::class)),
                 'audit' => ($asset->deleted_at == '' && Gate::allows('audit', Asset::class)),
-                'delete' => ($asset->deleted_at == '' && ! $asset->assigned_to && Gate::allows('delete', Asset::class)),
+                'delete' => ($asset->deleted_at == '' && ! $asset->assigned_to && Gate::allows('delete', Asset::class) && $canDelete),
                 'labels' => $asset->deleted_at == '',
-                'restore' => ($asset->deleted_at != '' && Gate::allows('create', Asset::class)),
+                'restore' => $canRestore,
             ],
         ];
 

@@ -7,6 +7,7 @@ use App\Http\Requests\Traits\MayContainCustomFields;
 use App\Models\Asset;
 use App\Models\Company;
 use App\Rules\AssetCannotBeCheckedOutToNondeployableStatus;
+use App\Rules\AuthorisedAssetModel;
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Support\Facades\Gate;
@@ -56,6 +57,10 @@ class StoreAssetRequest extends ImageUploadRequest
         // be written via assigned_user / assigned_asset / assigned_location (which
         // route through checkOut() and produce the required audit-log entry).
         unset($modelRules['assigned_to'], $modelRules['assigned_type']);
+
+        // ERS Phase 5B2: the model must be one the user may create assets
+        // with (category Create on its final category).
+        $modelRules['model_id'][] = AuthorisedAssetModel::forCreate();
 
         return array_merge(
             $modelRules,

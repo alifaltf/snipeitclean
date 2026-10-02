@@ -6,6 +6,7 @@ use App\Helpers\Helper;
 use App\Http\Requests\Traits\MayContainCustomFields;
 use App\Models\Asset;
 use App\Models\Setting;
+use App\Rules\AuthorisedAssetModel;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -20,7 +21,8 @@ class UpdateAssetRequest extends ImageUploadRequest
      */
     public function authorize()
     {
-        return Gate::allows('update', $this->asset);
+        // ERS Phase 5B2: 'update' plus category Edit (see AssetPolicy).
+        return Gate::allows('editRecord', $this->asset);
     }
 
     public function prepareForValidation(): void
@@ -79,7 +81,13 @@ class UpdateAssetRequest extends ImageUploadRequest
             // Confusingly, this skips the unique_undeleted validator at the model level (and therefore the UniqueUndeletedTrait), so we have to re-add those
             // rules here without the requiredness, since those values will already exist if you're updating an existing asset.
             [
-                'model_id' => ['integer', 'exists:models,id,deleted_at,NULL', 'not_array'],
+                // ERS Phase 5B2: moving an asset to another model needs category
+                // Edit on the destination's final category (Edit on the current
+                // category is enforced by AssetPolicy). Bulk has no single
+                // current model, so every supplied model_id is checked.
+                'model_id' => ['integer', 'exists:models,id,deleted_at,NULL', 'not_array', AuthorisedAssetModel::forUpdate(
+                    $this->asset instanceof Asset && is_numeric($this->asset->getOriginal('model_id')) ? (int) $this->asset->getOriginal('model_id') : null
+                )],
                 'status_id' => ['integer', 'exists:status_labels,id'],
                 'asset_tag' => [
                     'min:1', 'max:255', 'not_array',

@@ -11,6 +11,9 @@ use App\Models\AssetCategoryViewScope;
 use App\Models\AssetModel;
 use App\Models\CustomField;
 use App\Models\SnipeModel;
+use App\Services\AssetCategoryAccess;
+use App\Services\AssetCategoryPermissionService;
+use App\Services\AssetCategoryWriteAuthorizer;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -320,9 +323,34 @@ class AssetModelsController extends Controller
      *
      * @param  int  $modelId
      */
-    public function getCustomFields($modelId): View
+    public function getCustomFields(Request $request, $modelId): View
     {
-        return view('models.custom_fields_form')->with('model', AssetModel::find($modelId));
+        $model = AssetModel::find($modelId);
+
+        if ($request->has('asset_operation')) {
+            // ERS Phase 5B2: the asset create / edit forms say which operation
+            // they perform. Only 'create' (category Create) and 'update'
+            // (category Edit) are accepted, with the same valid-target rule
+            // as AuthorisedAssetModel; anything else (unknown value, array,
+            // ...) renders no fields.
+            $operation = match ($request->query('asset_operation')) {
+                'create' => AssetCategoryAccess::CREATE,
+                'update' => AssetCategoryAccess::UPDATE,
+                default => null,
+            };
+            if ($operation === null || ! app(AssetCategoryWriteAuthorizer::class)->allowsModel($operation, $modelId)) {
+                $model = null;
+            }
+        } else {
+            // ERS Phase 5B1: any other caller only gets fields for models in
+            // categories the user may view; any other id renders nothing.
+            $access = app(AssetCategoryPermissionService::class)->forCurrentUser();
+            if ($access !== null && ($model === null || ! $access->allows(AssetCategoryAccess::VIEW, (int) $model->category_id))) {
+                $model = null;
+            }
+        }
+
+        return view('models.custom_fields_form')->with('model', $model);
     }
 
     /**

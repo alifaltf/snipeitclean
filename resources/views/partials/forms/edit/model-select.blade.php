@@ -4,7 +4,14 @@
     <label for="{{ $fieldname }}" class="col-md-3 control-label">{{ $translated_name }}</label>
 
     <div class="col-md-7">
-        <select class="js-data-ajax" data-endpoint="models" data-placeholder="{{ trans('general.select_model') }}" name="{{ $fieldname }}" style="width: 100%" id="model_select_id" aria-label="{{ $fieldname }}"{{  ((isset($field_req)) || ((isset($required) && ($required =='true')))) ?  ' required' : '' }}{{ (isset($multiple) && ($multiple=='true')) ? " multiple='multiple'" : '' }}>
+        {{-- ERS Phase 5B2: asset forms pass $asset_operation ('create' or
+             'update'): the picker then only offers models the user may use for
+             that operation, and pre-selected ids are only rendered when allowed. --}}
+        @php
+            $ersWrites = isset($asset_operation) ? app(\App\Services\AssetCategoryWriteAuthorizer::class) : null;
+            $ersMayShow = fn ($id) => $ersWrites === null || $ersWrites->mayPreselectModel($asset_operation, $id, (isset($item) && $item instanceof \App\Models\Asset) ? $item : null);
+        @endphp
+        <select class="js-data-ajax" data-endpoint="{{ isset($asset_operation) ? 'models/'.$asset_operation : 'models' }}" data-placeholder="{{ trans('general.select_model') }}" name="{{ $fieldname }}" style="width: 100%" id="model_select_id" aria-label="{{ $fieldname }}"{{  ((isset($field_req)) || ((isset($required) && ($required =='true')))) ?  ' required' : '' }}{{ (isset($multiple) && ($multiple=='true')) ? " multiple='multiple'" : '' }}>
             @isset ($selected)
                 @if (!is_iterable($selected))
                     @php
@@ -12,12 +19,13 @@
                     @endphp
                 @endif
                 @foreach ($selected as $model_id)
+                    @continue(! $ersMayShow($model_id))
                     <option value="{{ $model_id }}" selected="selected" role="option" aria-selected="true">
                         {{ \App\Models\AssetModel::find($model_id)->name }}
                     </option>
                 @endforeach
             @endisset
-            @if ($model_id = old($fieldname, ($item->{$fieldname} ?? request($fieldname) ?? '')))
+            @if (($model_id = old($fieldname, ($item->{$fieldname} ?? request($fieldname) ?? ''))) && $ersMayShow($model_id))
                 <option value="{{ $model_id }}" selected="selected">
                     {{ (\App\Models\AssetModel::find($model_id)) ? \App\Models\AssetModel::find($model_id)->name : '' }}
                 </option>

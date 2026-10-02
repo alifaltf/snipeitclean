@@ -4,9 +4,12 @@
     'count' => null,
     'type' => 'item',
     'wide' => false,
+    // ERS Phase 5B2: the asset page passes its record ability (editRecord,
+    // deleteRecord, restoreRecord); everything else keeps the default.
+    'ability' => 'delete',
 ])
 
-@can('delete', $item)
+@can($ability, $item)
     <!-- start delete button component -->
     @if ((method_exists($item, 'isDeletable')) && ($item->deleted_at==''))
         @if (!$item->isDeletable())

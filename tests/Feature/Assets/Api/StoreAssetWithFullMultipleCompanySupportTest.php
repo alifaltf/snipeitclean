@@ -7,11 +7,16 @@ use App\Models\AssetModel;
 use App\Models\Statuslabel;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\ProvidesDataForFullMultipleCompanySupportTesting;
+use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 use Tests\TestCase;
 
 class StoreAssetWithFullMultipleCompanySupportTest extends TestCase
 {
     use ProvidesDataForFullMultipleCompanySupportTesting;
+
+    // ERS Phase 5B2: upstream test written before asset-category permissions;
+    // its non-Super-User actors create assets without category Create grants.
+    use UsesLegacyAssetCategoryCompatibility;
 
     /**
      * @link https://github.com/grokability/snipe-it/issues/15654

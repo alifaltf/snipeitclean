@@ -18,8 +18,9 @@ class BulkUpdateAssetsRequest extends UpdateAssetRequest
     public function authorize()
     {
         // Coarse gate: caller must have general update permission on the
-        // Asset resource. Per-row permission is checked inside bulkUpdate()
-        // so a single denied asset produces one error row, not a whole 403.
+        // Asset resource. Per-asset permission (company scope and ERS
+        // asset-category Edit) is checked inside bulkUpdate() for every
+        // asset BEFORE any write; one denied asset refuses the whole batch.
         return Gate::allows('update', Asset::class);
     }
 

@@ -93,7 +93,7 @@
         />
     @endif
 
-    @include ('partials.forms.edit.model-select', ['translated_name' => trans('admin/hardware/form.model'), 'fieldname' => 'model_id', 'field_req' => true])
+    @include ('partials.forms.edit.model-select', ['translated_name' => trans('admin/hardware/form.model'), 'fieldname' => 'model_id', 'field_req' => true, 'asset_operation' => $item->id ? 'update' : 'create'])
 
 
     @include ('partials.forms.edit.status', [ 'required' => 'true'])
@@ -156,7 +156,10 @@
         @endif
         @if (old('model_id'))
             @php
-                $model = \App\Models\AssetModel::find(old('model_id'));
+                // ERS Phase 5B2: never render the fieldset of a model the user may not use.
+                $model = app(\App\Services\AssetCategoryWriteAuthorizer::class)->mayPreselectModel($item->id ? 'update' : 'create', old('model_id'), $item->id ? $item : null)
+                    ? \App\Models\AssetModel::find(old('model_id'))
+                    : null;
             @endphp
         @elseif (isset($selected_model))
             @php
@@ -368,7 +371,9 @@
 
             $.ajax({
                 type: 'GET',
-                url: "{{ config('app.url') }}/models/" + modelid + "/custom_fields",
+                // ERS Phase 5B2: say which asset operation this form performs,
+                // so only fields of models the user may use for it are returned.
+                url: "{{ config('app.url') }}/models/" + modelid + "/custom_fields?asset_operation={{ $item->id ? 'update' : 'create' }}",
                 headers: {
                     "X-Requested-With": 'XMLHttpRequest',
                     "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr('content')

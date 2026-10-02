@@ -31,6 +31,7 @@ use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetCategorySelection;
+use App\Services\AssetCategoryWriteAuthorizer;
 use App\View\Label;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -840,6 +841,29 @@ class AssetsController extends Controller
 
         $assets = Asset::whereIn('id', $ids)->get()->keyBy('id');
 
+        // ERS Phase 5B2: authorise the WHOLE batch before writing anything.
+        // 1. Every submitted id must resolve through the normal scoped query.
+        //    A missing, hidden (company or category scope), forged or
+        //    malformed id refuses the whole request with one generic answer,
+        //    so hidden and missing ids are indistinguishable and no visible
+        //    asset in the batch is modified.
+        // 2. Every asset must be editable (upstream 'update' plus category
+        //    Edit, via the policy); one failure is the normal 403.
+        // Models load in one query (no per-asset permission query). A new
+        // model_id is checked by BulkUpdateAssetsRequest.
+        $writes = app(AssetCategoryWriteAuthorizer::class);
+        if (! $writes->resolvesSelection($request->input('ids'), $assets)) {
+            return response()->json([
+                'status' => 'error',
+                'messages' => trans('admin/hardware/message.bulk_selection_unavailable'),
+                'results' => [],
+            ]);
+        }
+        $writes->primeModels($assets);
+        foreach ($assets as $asset) {
+            $this->authorize('editRecord', $asset);
+        }
+
         $results = [];
         $success_count = 0;
         $error_count = 0;
@@ -858,21 +882,6 @@ class AssetsController extends Controller
             }
 
             $asset = $assets->get($id);
-
-            // Per-row auth: a caller who can update one asset may not be able
-            // to update another (FMCS, tightened policy). Deny one row rather
-            // than 403ing the whole batch.
-            if (! Gate::allows('update', $asset)) {
-                $results[] = [
-                    'id' => $id,
-                    'status' => 'error',
-                    'messages' => trans('general.unauthorized'),
-                    'payload' => null,
-                ];
-                $error_count++;
-
-                continue;
-            }
 
             $result = $this->applyAssetUpdate($asset, $request);
             $row = $this->buildRowResult($id, $result);
@@ -1209,7 +1218,8 @@ class AssetsController extends Controller
         $this->authorize('delete', Asset::class);
 
         if ($asset = Asset::find($id)) {
-            $this->authorize('delete', $asset);
+            // ERS Phase 5B2: global Delete plus category Delete (see AssetPolicy).
+            $this->authorize('deleteRecord', $asset);
 
             if ($asset->assignedTo) {
 
@@ -1243,7 +1253,8 @@ class AssetsController extends Controller
     {
 
         if ($asset = Asset::withTrashed()->find($assetId)) {
-            $this->authorize('delete', $asset);
+            // ERS Phase 5B2: global Delete plus category Delete (see AssetPolicy).
+            $this->authorize('restoreRecord', $asset);
 
             if ($asset->deleted_at == '') {
                 return response()->json(Helper::formatStandardApiResponse('error', trans('general.not_deleted', ['item_type' => trans('general.asset')])), 200);

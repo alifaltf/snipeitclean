@@ -79,6 +79,8 @@ class BulkRestoreAuthorizationTest extends TestCase
     {
         // Prior code did Asset::withTrashed()->find($id)->restore() with no
         // null guard, so any invalid or forged ID crashed the whole request.
+        // ERS Phase 5B2: an id that does not resolve now refuses the whole
+        // request with a generic message (no 500, and nothing is restored).
         $realAsset = Asset::factory()->deleted()->create();
 
         $user = User::factory()->viewAssets()->deleteAssets()->create();
@@ -87,9 +89,10 @@ class BulkRestoreAuthorizationTest extends TestCase
             ->post(route('hardware/bulkrestore'), [
                 'ids' => [$realAsset->id, 99999999],
             ])
-            ->assertRedirect(route('hardware.index'));
+            ->assertRedirect(route('hardware.index'))
+            ->assertSessionHas('error', trans('admin/hardware/message.bulk_selection_unavailable'));
 
         $realAsset->refresh();
-        $this->assertNull($realAsset->deleted_at);
+        $this->assertNotNull($realAsset->deleted_at);
     }
 }

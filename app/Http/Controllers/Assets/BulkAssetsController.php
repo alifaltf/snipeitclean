@@ -20,6 +20,8 @@ use App\Models\Location;
 use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\User;
+use App\Rules\AuthorisedAssetModel;
+use App\Services\AssetCategoryWriteAuthorizer;
 use App\View\Label;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
@@ -32,6 +34,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class BulkAssetsController extends Controller
 {
@@ -101,6 +104,16 @@ class BulkAssetsController extends Controller
             $request->session()->flashInput(['selected_assets' => $asset_ids]);
 
             return redirect()->route('maintenances.create');
+        }
+
+        // ERS Phase 5B2: the write actions (edit, delete, restore) only accept
+        // a well-formed selection; anything else gets the generic answer
+        // BEFORE any query runs (no 500 on nested or malformed ids).
+        if (in_array($request->input('bulk_actions'), ['edit', 'delete', 'restore'], true)) {
+            $asset_ids = AssetCategoryWriteAuthorizer::normalizeSelection($asset_ids);
+            if ($asset_ids === null) {
+                return redirect()->back()->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+            }
         }
 
         // Stash where to redirect after update/destroy. Referer is user-
@@ -216,23 +229,45 @@ class BulkAssetsController extends Controller
 
                 case 'delete':
                     $this->authorize('delete', Asset::class);
+                    // ERS Phase 5B2: every submitted id must resolve (see update()).
+                    if (! app(AssetCategoryWriteAuthorizer::class)->resolvesSelection($asset_ids, $assets)) {
+                        return redirect()->back()->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+                    }
                     $assets->each(function ($assets) {
-                        $this->authorize('delete', $assets);
+                        // ERS Phase 5B2: 'delete' plus category Delete.
+                        $this->authorize('deleteRecord', $assets);
                     });
 
                     return view('hardware/bulk-delete')->with('assets', $assets);
 
                 case 'restore':
-                    $this->authorize('update', Asset::class);
+                    // ERS Phase 5B2: restore is a delete-level action on every
+                    // path (global Delete plus category Delete).
+                    $this->authorize('delete', Asset::class);
                     $assets = Asset::withTrashed()->find($asset_ids);
+                    // ERS Phase 5B2: every submitted id must resolve (see update()).
+                    if (! app(AssetCategoryWriteAuthorizer::class)->resolvesSelection($asset_ids, $assets)) {
+                        return redirect()->back()->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+                    }
+                    app(AssetCategoryWriteAuthorizer::class)->primeModels($assets);
                     $assets->each(function ($asset) {
-                        $this->authorize('delete', $asset);
+                        // ERS Phase 5B2: global Delete plus category Delete.
+                        $this->authorize('restoreRecord', $asset);
                     });
 
                     return view('hardware/bulk-restore')->with('assets', $assets);
 
                 case 'edit':
                     $this->authorize('update', Asset::class);
+                    // ERS Phase 5B2: every submitted id must resolve and every
+                    // asset must be editable (category Edit), or the whole bulk
+                    // edit is refused.
+                    if (! app(AssetCategoryWriteAuthorizer::class)->resolvesSelection($asset_ids, $assets)) {
+                        return redirect()->back()->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+                    }
+                    $assets->each(function ($asset) {
+                        $this->authorize('editRecord', $asset);
+                    });
 
                     return view('hardware/bulk')
                         ->with('assets', $asset_ids)
@@ -279,11 +314,36 @@ class BulkAssetsController extends Controller
             $custom_fields_to_null[str_replace('null', '', $key)] = $value;
         }
 
-        if (! $request->filled('ids') || count($request->input('ids')) == 0) {
+        if (! $request->filled('ids') || $request->input('ids') === []) {
             return redirect($bulk_back_url)->with('error', trans('admin/hardware/message.update.no_assets_selected'));
         }
 
-        $assets = Asset::whereIn('id', $request->input('ids'))->get();
+        // ERS Phase 5B2: validate the selection before any query.
+        $assetIds = AssetCategoryWriteAuthorizer::normalizeSelection($request->input('ids'));
+        if ($assetIds === null) {
+            return redirect($bulk_back_url)->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+        }
+
+        $assets = Asset::whereIn('id', $assetIds)->get();
+
+        // ERS Phase 5B2: authorise the WHOLE request before writing anything.
+        // Every submitted id must resolve through the scoped query above (a
+        // missing, hidden, forged or malformed id refuses the whole request
+        // with one generic message, so hidden and missing ids look the same
+        // and no asset is modified); every asset needs upstream 'update' plus
+        // category Edit; a new model needs category Edit on its category.
+        // Models are loaded in one query (no per-asset permission query).
+        $writes = app(AssetCategoryWriteAuthorizer::class);
+        if (! $writes->resolvesSelection($assetIds, $assets)) {
+            return redirect($bulk_back_url)->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+        }
+        $writes->primeModels($assets);
+        foreach ($assets as $asset) {
+            $this->authorize('editRecord', $asset);
+        }
+        if ($request->filled('model_id')) {
+            Validator::make($request->only('model_id'), ['model_id' => [AuthorisedAssetModel::forUpdate()]])->validate();
+        }
 
         /**
          * If ANY of these are filled, prepare to update the values on the assets.
@@ -631,6 +691,12 @@ class BulkAssetsController extends Controller
             return redirect($bulk_back_url)->with('error', trans('admin/hardware/message.delete.nothing_updated'));
         }
 
+        // ERS Phase 5B2: validate the selection before any query.
+        $assetIds = AssetCategoryWriteAuthorizer::normalizeSelection($assetIds);
+        if ($assetIds === null) {
+            return redirect($bulk_back_url)->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+        }
+
         $assignedAssets = Asset::whereIn('id', $assetIds)->whereNotNull('assigned_to')->get();
         if ($assignedAssets->isNotEmpty()) {
 
@@ -640,7 +706,21 @@ class BulkAssetsController extends Controller
             return redirect($bulk_back_url)->with('error', trans_choice('admin/hardware/message.delete.assigned_to_error', $assignedAssets->count(), ['asset_tag' => $assetTags]));
         }
 
-        foreach (Asset::wherein('id', $assetIds)->get() as $asset) {
+        // ERS Phase 5B2: every submitted id must resolve (a missing, hidden,
+        // forged or malformed id refuses the whole request with one generic
+        // message) and every asset needs upstream 'delete' plus category
+        // Delete, all checked before any asset is deleted.
+        $assets = Asset::whereIn('id', $assetIds)->get();
+        $writes = app(AssetCategoryWriteAuthorizer::class);
+        if (! $writes->resolvesSelection($assetIds, $assets)) {
+            return redirect($bulk_back_url)->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+        }
+        $writes->primeModels($assets);
+        foreach ($assets as $asset) {
+            $this->authorize('deleteRecord', $asset);
+        }
+
+        foreach ($assets as $asset) {
             $asset->delete();
         }
 
@@ -1189,12 +1269,31 @@ class BulkAssetsController extends Controller
             return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.restore.nothing_updated'));
         }
 
-        foreach ($assetIds as $assetId) {
-            // Skip invalid or forged IDs. Prior code called ->restore() on
-            // null and 500'd on the first bad id in the payload.
-            if ($asset = Asset::withTrashed()->find($assetId)) {
-                $asset->restore();
-            }
+        // (Prior code called ->restore() on null and 500'd on the first bad
+        // id in the payload.)
+        // ERS Phase 5B2: the selection is validated before any query, every
+        // submitted id must resolve (a missing, hidden, forged or malformed
+        // id refuses the whole request with one generic message), and every
+        // asset needs the restoreRecord ability (global Delete plus category
+        // Delete, the same rule as every other restore path), all checked
+        // before any write.
+        $assetIds = AssetCategoryWriteAuthorizer::normalizeSelection($assetIds);
+        if ($assetIds === null) {
+            return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+        }
+
+        $assets = Asset::withTrashed()->whereIn('id', $assetIds)->get();
+        $writes = app(AssetCategoryWriteAuthorizer::class);
+        if (! $writes->resolvesSelection($assetIds, $assets)) {
+            return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.bulk_selection_unavailable'));
+        }
+        $writes->primeModels($assets);
+        foreach ($assets as $asset) {
+            $this->authorize('restoreRecord', $asset);
+        }
+
+        foreach ($assets as $asset) {
+            $asset->restore();
         }
 
         return redirect()->route('hardware.index')->with('success', trans('admin/hardware/message.restore.success'));

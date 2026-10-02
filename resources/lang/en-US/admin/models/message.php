@@ -56,4 +56,7 @@ return [
         'success_partial' => ':success_count model(s) were deleted, however :fail_count were unable to be deleted because they still have assets associated with them.',
     ],
 
+    // ERS Phase 5B2
+    'category_change_requires_asset_edit' => 'This model still has assets. Moving it to another category moves those assets too, which requires asset Edit permission on both the current and the new category.',
+
 ];

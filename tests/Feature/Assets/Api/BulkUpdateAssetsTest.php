@@ -77,7 +77,7 @@ class BulkUpdateAssetsTest extends TestCase
     {
         [$a, $b, $c] = Asset::factory()->count(3)->create();
 
-        $response = $this->actingAsForApi(User::factory()->editAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson($this->bulkUrl(), [
                 'ids' => [$c->id, $a->id, $b->id],
                 'notes' => 'order check',
@@ -90,6 +90,9 @@ class BulkUpdateAssetsTest extends TestCase
 
     public function test_nonexistent_id_is_reported_as_row_error()
     {
+        // ERS Phase 5B2: a batch containing any id that does not resolve is
+        // refused as a whole with one generic message (a hidden asset must
+        // look exactly like a missing one), and nothing is modified.
         $a = Asset::factory()->create();
 
         $response = $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
@@ -99,16 +102,15 @@ class BulkUpdateAssetsTest extends TestCase
             ])
             ->assertOk();
 
-        $this->assertSame('partial', $response->json('status'));
-
-        $rows = collect($response->json('results'))->keyBy('id');
-        $this->assertSame('success', $rows[$a->id]['status']);
-        $this->assertSame('error', $rows[999999]['status']);
-        $this->assertNull($rows[999999]['payload']);
+        $this->assertSame('error', $response->json('status'));
+        $this->assertSame(trans('admin/hardware/message.bulk_selection_unavailable'), $response->json('messages'));
+        $this->assertSame([], $response->json('results'));
+        $this->assertNotSame('partial', $a->fresh()->notes);
     }
 
     public function test_all_failures_produce_overall_error_status()
     {
+        // ERS Phase 5B2: refused as a whole with the generic message.
         $response = $this->actingAsForApi(User::factory()->editAssets()->create())
             ->patchJson($this->bulkUrl(), [
                 'ids' => [999998, 999999],
@@ -117,18 +119,15 @@ class BulkUpdateAssetsTest extends TestCase
             ->assertOk();
 
         $this->assertSame('error', $response->json('status'));
-        $this->assertCount(2, $response->json('results'));
-
-        foreach ($response->json('results') as $row) {
-            $this->assertSame('error', $row['status']);
-        }
+        $this->assertSame(trans('admin/hardware/message.bulk_selection_unavailable'), $response->json('messages'));
+        $this->assertSame([], $response->json('results'));
     }
 
     public function test_duplicate_ids_are_only_processed_once()
     {
         $a = Asset::factory()->create();
 
-        $response = $this->actingAsForApi(User::factory()->editAssets()->create())
+        $response = $this->actingAsForApi(User::factory()->viewAssets()->editAssets()->create())
             ->patchJson($this->bulkUrl(), [
                 'ids' => [$a->id, $a->id, $a->id],
                 'notes' => 'once please',
@@ -286,10 +285,8 @@ class BulkUpdateAssetsTest extends TestCase
 
     public function test_respects_fmcs_scoping_for_non_superuser()
     {
-        // Caller scoped to company A asking to update assets [A-owned, B-owned]
-        // should see the B-owned row surface as `does_not_exist` — the query-level
-        // CompanyableScope hides it from `Asset::whereIn(...)`, so the row falls
-        // into the "no such asset" branch. The A-owned row goes through as normal.
+        // Caller scoped to company A asking to update assets [A-owned, B-owned]:
+        // the query-level CompanyableScope hides the B-owned row.
         $this->settings->enableMultipleFullCompanySupport();
 
         $companyA = Company::factory()->create();
@@ -306,13 +303,13 @@ class BulkUpdateAssetsTest extends TestCase
             ])
             ->assertOk();
 
-        $this->assertSame('partial', $response->json('status'));
+        // ERS Phase 5B2: the hidden B-owned row makes the whole batch fail
+        // with the generic message (identical to a missing id); neither
+        // asset is modified.
+        $this->assertSame('error', $response->json('status'));
+        $this->assertSame(trans('admin/hardware/message.bulk_selection_unavailable'), $response->json('messages'));
 
-        $rows = collect($response->json('results'))->keyBy('id');
-        $this->assertSame('success', $rows[$assetA->id]['status']);
-        $this->assertSame('error', $rows[$assetB->id]['status']);
-
-        $this->assertSame('fmcs check', $assetA->fresh()->notes);
+        $this->assertNotSame('fmcs check', $assetA->fresh()->notes);
         $this->assertNotSame('fmcs check', $assetB->fresh()->notes);
     }
 }

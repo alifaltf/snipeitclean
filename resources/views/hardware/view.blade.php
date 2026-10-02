@@ -455,13 +455,15 @@
                             <x-button.checkin permission="checkin" :item="$asset" :route="route('hardware.checkin.create', $asset->id)"/>
                         @endif
 
-                        <x-button.edit :item="$asset" :route="route('hardware.edit', $asset->id)"/>
+                        <x-button.edit :item="$asset" :route="route('hardware.edit', $asset->id)" ability="editRecord"/>
+                        @if (app(\App\Services\AssetCategoryWriteAuthorizer::class)->canClone($asset))
                         <x-button.clone :item="$asset" :route="route('clone/hardware', $asset->id)"/>
+                        @endif
                         <x-button.note :item="$asset" :route="route('clone/hardware', $asset->id)"/>
                         <x-button.audit :item="$asset" :route="route('asset.audit.create', $asset->id)"/>
                         <x-button.label :item="$asset" :route="route('hardware.bulkedit.show')"/>
-                        <x-button.delete :item="$asset"/>
-                        <x-button.restore :item="$asset" :route="route('restore/hardware', ['asset' => $asset->id])"/>
+                        <x-button.delete :item="$asset" ability="deleteRecord"/>
+                        <x-button.restore :item="$asset" :route="route('restore/hardware', ['asset' => $asset->id])" ability="restoreRecord"/>
                     </x-slot:buttons>
                 </x-info-panel>
             </x-box>

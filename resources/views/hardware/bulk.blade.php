@@ -147,6 +147,7 @@
                     :label="trans('admin/hardware/form.model')"
                     name="model_id"
                     :selected="old('model_id')"
+                    asset-operation="update"
                 />
 
                 <x-input.location-select

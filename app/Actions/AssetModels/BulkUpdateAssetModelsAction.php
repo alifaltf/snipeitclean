@@ -4,6 +4,7 @@ namespace App\Actions\AssetModels;
 
 use App\Models\AssetModel;
 use App\Rules\AssignableAssetCategory;
+use App\Services\AssetCategoryWriteAuthorizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -34,6 +35,16 @@ final class BulkUpdateAssetModelsAction
                 if ($problem !== null) {
                     throw ValidationException::withMessages([
                         'category_id' => AssignableAssetCategory::message($problem),
+                    ]);
+                }
+
+                // ERS Phase 5B2: moving models that still have assets needs
+                // asset-category Edit on every old and the new category.
+                // Checked for all models before any row is updated.
+                $models = AssetModel::withTrashed()->whereIn('id', $ids)->get(['id', 'category_id']);
+                if (! app(AssetCategoryWriteAuthorizer::class)->allowsModelsCategoryChange($models, $updates['category_id'])) {
+                    throw ValidationException::withMessages([
+                        'category_id' => trans('admin/models/message.category_change_requires_asset_edit'),
                     ]);
                 }
             }

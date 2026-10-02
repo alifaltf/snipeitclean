@@ -8,6 +8,8 @@
     'required' => false,
     'multiple' => false,
     'hideNewButton' => false,
+    // ERS Phase 5B2: 'create' or 'update' for asset forms (see partials/forms/edit/model-select).
+    'assetOperation' => null,
 ])
 
 <div
@@ -20,7 +22,7 @@
     <div class="col-md-7">
         <select
             class="js-data-ajax"
-            data-endpoint="models"
+            data-endpoint="{{ $assetOperation ? 'models/'.$assetOperation : 'models' }}"
             data-placeholder="{{ trans('general.select_model') }}"
             name="{{ $name }}{{ $multiple ? '[]' : '' }}"
             id="{{ $name }}_select"
@@ -32,6 +34,7 @@
             <option value=""></option>
             @if ($selected)
                 @foreach(Arr::wrap($selected) as $value)
+                    @continue($assetOperation && ! app(\App\Services\AssetCategoryWriteAuthorizer::class)->mayPreselectModel($assetOperation, $value))
                     <option value="{{ $value }}" selected="selected" role="option" aria-selected="true">
                         {{ AssetModel::find($value)?->name }}
                     </option>

@@ -2,9 +2,12 @@
     'item' => null,
     'route' => null,
     'wide' => false,
+    // ERS Phase 5B2: the asset page passes its record ability (editRecord,
+    // deleteRecord, restoreRecord); everything else keeps the default.
+    'ability' => 'update',
 ])
 
-@can('update', $item)
+@can($ability, $item)
     @if ($item->deleted_at!='')
     <!-- start restore button component -->
     <form method="POST" action="{{ $route }}" class="inline">

@@ -921,6 +921,16 @@ Route::group(['prefix' => 'v1', 'middleware' => ['api', 'api-throttle:api']], fu
             ]
         )->name('api.models.selectlist');
 
+        // ERS Phase 5B2: model pickers on the asset create/clone form and the
+        // asset edit/bulk-edit forms (the select2 widget calls
+        // api/v1/{data-endpoint}/selectlist, so these need no JS change).
+        Route::get('{operation}/selectlist',
+            [
+                Api\AssetModelsController::class,
+                'selectlist',
+            ]
+        )->whereIn('operation', ['create', 'update'])->name('api.models.selectlist.for');
+
         Route::get('assets',
             [
                 Api\AssetModelsController::class,

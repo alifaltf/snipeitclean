@@ -18,10 +18,14 @@ use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\User;
 use App\Observers\AssetObserver;
+use App\Rules\AuthorisedAssetModel;
+use App\Services\AssetCategoryAccess;
 use App\Services\AssetCategorySelection;
+use App\Services\AssetCategoryWriteAuthorizer;
 use App\View\Label;
 use Carbon\Carbon;
 use Com\Tecnick\Barcode\Barcode;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,6 +35,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use TypeError;
 
@@ -95,7 +100,9 @@ class AssetsController extends Controller
             ->with('item', new Asset)
             ->with('statuslabel_types', Helper::statusTypeList());
 
-        if ($request->filled('model_id')) {
+        // ERS Phase 5B2: only pre-select a model the user may create with,
+        // so ?model_id= never reveals a hidden model.
+        if ($request->filled('model_id') && app(AssetCategoryWriteAuthorizer::class)->allowsModel(AssetCategoryAccess::CREATE, $request->input('model_id'))) {
             $selected_model = AssetModel::find($request->input('model_id'));
             $view->with('selected_model', $selected_model);
         }
@@ -321,7 +328,8 @@ class AssetsController extends Controller
      */
     public function edit(Asset $asset): View|RedirectResponse
     {
-        $this->authorize($asset);
+        // ERS Phase 5B2: 'update' plus category Edit (see AssetPolicy).
+        $this->authorize('editRecord', $asset);
         if ($safeReferer = Helper::sameOriginUrl(url()->previous())) {
             session()->put('url.intended', $safeReferer);
         }
@@ -424,7 +432,15 @@ class AssetsController extends Controller
     public function update(ImageUploadRequest $request, Asset $asset): RedirectResponse
     {
 
-        $this->authorize($asset);
+        // ERS Phase 5B2: 'update' plus category Edit (see AssetPolicy).
+        $this->authorize('editRecord', $asset);
+
+        // ERS Phase 5B2: moving the asset to another model needs category
+        // Edit on the destination (Edit on the current category is checked
+        // by the policy above). Checked before anything is changed.
+        Validator::make($request->only('model_id'), [
+            'model_id' => [AuthorisedAssetModel::forUpdate(is_numeric($asset->getOriginal('model_id')) ? (int) $asset->getOriginal('model_id') : null)],
+        ])->validate();
 
         $asset->status_id = $request->input('status_id', null);
         $asset->warranty_months = $request->input('warranty_months', null);
@@ -573,7 +589,8 @@ class AssetsController extends Controller
      */
     public function destroy(Request $request, Asset $asset): RedirectResponse
     {
-        $this->authorize('delete', $asset);
+        // ERS Phase 5B2: global Delete plus category Delete (see AssetPolicy).
+        $this->authorize('deleteRecord', $asset);
         if ($asset->assignedTo) {
 
             $target = $asset->assignedTo;
@@ -772,6 +789,14 @@ class AssetsController extends Controller
     public function getClone(Asset $asset)
     {
         $this->authorize('create', Asset::class);
+
+        // ERS Phase 5B2: cloning creates an asset in the source asset's
+        // category, so it needs category Create there and a live model in a
+        // live final category. canClone() is the same rule that decides
+        // whether a Clone action is shown anywhere in the UI.
+        if (! app(AssetCategoryWriteAuthorizer::class)->canClone($asset)) {
+            throw new AuthorizationException;
+        }
         $cloned = clone $asset;
         $cloned_model = $asset;
         $cloned->id = null;
@@ -806,7 +831,8 @@ class AssetsController extends Controller
     public function getRestore($assetId = null)
     {
         if ($asset = Asset::withTrashed()->find($assetId)) {
-            $this->authorize('delete', $asset);
+            // ERS Phase 5B2: global Delete plus category Delete (see AssetPolicy).
+            $this->authorize('restoreRecord', $asset);
 
             if ($asset->deleted_at == '') {
                 return redirect()->back()->with('error', trans('general.not_deleted', ['item_type' => trans('general.asset')]));

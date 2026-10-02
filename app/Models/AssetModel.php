@@ -9,6 +9,7 @@ use App\Models\Traits\Requestable;
 use App\Models\Traits\Searchable;
 use App\Presenters\AssetModelPresenter;
 use App\Presenters\Presentable;
+use App\Rules\AssetModelCategoryChange;
 use App\Rules\AssignableAssetCategory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -68,11 +69,14 @@ class AssetModel extends SnipeModel
      * ERS Phase 3: an Asset Model may only use a live, final/assignable asset
      * category. This applies to every Eloquent write path (web, API, clone,
      * restore, importer) because they all save through this model.
+     *
+     * ERS Phase 5B2: moving a model that still has assets to another
+     * category also needs asset-category Edit on both categories.
      */
     public function getRules()
     {
         $rules = isset($this->rules) ? $this->rules : [];
-        $rules['category_id'] = ['bail', 'required', new AssignableAssetCategory];
+        $rules['category_id'] = ['bail', 'required', new AssignableAssetCategory, new AssetModelCategoryChange($this)];
 
         return $rules;
     }

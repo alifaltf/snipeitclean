@@ -37,7 +37,9 @@ class BulkEditAssetsTest extends TestCase
     {
         $this->withoutExceptionHandling();
 
-        $user = User::factory()->viewAssets()->editAssets()->create();
+        // ERS Phase 5B2/5B1: an asset whose model is gone is Super-Admin-only,
+        // so the Super Admin exercises this missing-model rendering path.
+        $user = User::factory()->superuser()->create();
         $assets = Asset::factory()->count(2)->create();
 
         $assets->first()->model->forceDelete();
