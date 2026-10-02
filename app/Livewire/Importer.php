@@ -344,9 +344,20 @@ class Importer extends Component
         }
     }
 
+    /**
+     * ERS Phase 6A: runs on every Livewire request for this component (the
+     * initial page and every later action), so only a Super User can use
+     * the native importer, even with a component snapshot obtained earlier.
+     */
+    public function boot(): void
+    {
+        $this->authorize('import.legacy');
+    }
+
     public function mount()
     {
         $this->authorize('import');
+        $this->authorize('import.legacy');
         $this->importTypes = [
             'accessory' => trans('general.accessories'),
             'asset' => trans('general.assets'),

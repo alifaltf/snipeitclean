@@ -646,7 +646,10 @@
                                     </ul>
                                 </li>
                         @endcan
-                        @can('import')
+                        {{-- ERS Phase 6A: the native importer is Super-Admin-only;
+                             the secure asset CSV import link uses the same rule
+                             as its controller (SidebarComposer). --}}
+                        @can('import.legacy')
                             <li id="import-sidenav-option"{!! (request()->is('import*') ? ' class="active" aria-current="page"' : '') !!}>
                                 <a href="{{ route('imports.index') }}">
                                     <x-icon type="import" class="fa-fw" />
@@ -654,6 +657,14 @@
                                 </a>
                             </li>
                         @endcan
+                        @if ($can_use_secure_asset_import ?? false)
+                            <li id="asset-import-sidenav-option"{!! (request()->is('hardware/import*') ? ' class="active" aria-current="page"' : '') !!}>
+                                <a href="{{ route('hardware.import.index') }}">
+                                    <x-icon type="import" class="fa-fw" />
+                                    <span>{{ trans('admin/hardware/import.menu') }}</span>
+                                </a>
+                            </li>
+                        @endif
 
                         @can('backend.interact')
                             <li id="settings-sidenav-option" class="treeview {!! (request()->is(App\Helpers\Helper::SettingUrls()) ? ' active' : '') !!}">

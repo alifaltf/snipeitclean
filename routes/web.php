@@ -412,7 +412,9 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'authorize:superuser
 |
 */
 
-Route::group(['prefix' => 'import', 'middleware' => ['auth']], function () {
+// ERS Phase 6A: the native importer is Super-Admin-only (see the
+// import.legacy gate); ordinary users use /hardware/import.
+Route::group(['prefix' => 'import', 'middleware' => ['auth', 'can:import.legacy']], function () {
 
     Route::get('download/{import}',
         [

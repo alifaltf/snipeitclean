@@ -22,6 +22,7 @@ use App\Rules\AuthorisedAssetModel;
 use App\Services\AssetCategoryAccess;
 use App\Services\AssetCategorySelection;
 use App\Services\AssetCategoryWriteAuthorizer;
+use App\Services\AssetImport\AssetImportAuthorizer;
 use App\View\Label;
 use Carbon\Carbon;
 use Com\Tecnick\Barcode\Barcode;
@@ -78,9 +79,16 @@ class AssetsController extends Controller
         // live tree. Invalid values resolve to null (normal unfiltered page).
         $assetCategory = AssetCategorySelection::forRequest($request);
 
+        // ERS Phase 6A: a selected final category offers its own "Import CSV"
+        // entry point when the user may import into exactly that category.
+        $canImportIntoCategory = $assetCategory !== null
+            && ! $assetCategory->isNavigationGroup()
+            && app(AssetImportAuthorizer::class)->mayImportInto($request->user(), $assetCategory->id());
+
         return view('hardware/index')
             ->with('company', $company)
-            ->with('assetCategory', $assetCategory);
+            ->with('assetCategory', $assetCategory)
+            ->with('canImportIntoCategory', $canImportIntoCategory);
     }
 
     /**

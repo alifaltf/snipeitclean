@@ -53,7 +53,8 @@ class AssetImportCreatedAtTest extends TestCase
 
         // Perform import with update flag. The same user has to upload and
         // process, because the process endpoint scopes to the file's uploader.
-        $importer = User::factory()->viewAssets()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $importer = User::factory()->superuser()->create();
 
         $this->actingAsForApi($importer)
             ->postJson(route('api.imports.store'), [
@@ -127,7 +128,8 @@ class AssetImportCreatedAtTest extends TestCase
 
         // Same user has to upload and process, because the process endpoint
         // scopes to the file's uploader.
-        $importer = User::factory()->viewAssets()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $importer = User::factory()->superuser()->create();
 
         $this->actingAsForApi($importer)
             ->postJson(route('api.imports.store'), [

@@ -41,7 +41,7 @@ class ImporterTest extends TestCase
 
     public function test_renders_successfully()
     {
-        Livewire::actingAs(User::factory()->canImport()->create())
+        Livewire::actingAs(User::factory()->superuser()->create())
             ->test(Importer::class)
             ->assertStatus(200);
     }
@@ -56,7 +56,7 @@ class ImporterTest extends TestCase
     public function test_bulk_deletes_owned_imports()
     {
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $imports = Import::factory()->count(3)->create(['created_by' => $user->id]);
 
         Livewire::actingAs($user)
@@ -72,6 +72,9 @@ class ImporterTest extends TestCase
 
     public function test_bulk_destroy_skips_imports_the_caller_does_not_own()
     {
+        // ERS Phase 6A: the native importer is Super-Admin-only, so an
+        // ordinary importer cannot reach bulkDestroy at all (stronger than
+        // the previous per-owner filtering) and nothing is deleted.
         Storage::fake();
         $me = User::factory()->canImport()->create();
         $someoneElse = User::factory()->canImport()->create();
@@ -81,16 +84,15 @@ class ImporterTest extends TestCase
 
         Livewire::actingAs($me)
             ->test(Importer::class)
-            ->set('selectedIds', [(string) $mine->id, (string) $theirs->id])
-            ->call('bulkDestroy')
-            ->assertSet('message_type', 'success');
+            ->assertForbidden();
 
-        $this->assertDatabaseMissing('imports', ['id' => $mine->id]);
+        $this->assertDatabaseHas('imports', ['id' => $mine->id]);
         $this->assertDatabaseHas('imports', ['id' => $theirs->id]);
     }
 
     public function test_bulk_destroy_all_denied_produces_error_message()
     {
+        // ERS Phase 6A: an ordinary importer is refused before any action.
         Storage::fake();
         $me = User::factory()->canImport()->create();
         $someoneElse = User::factory()->canImport()->create();
@@ -99,9 +101,7 @@ class ImporterTest extends TestCase
 
         Livewire::actingAs($me)
             ->test(Importer::class)
-            ->set('selectedIds', $theirs->pluck('id')->map(fn ($id) => (string) $id)->all())
-            ->call('bulkDestroy')
-            ->assertSet('message_type', 'danger');
+            ->assertForbidden();
 
         // Neither import was deleted.
         foreach ($theirs as $import) {
@@ -130,7 +130,7 @@ class ImporterTest extends TestCase
     public function test_bulk_destroy_with_no_selection_does_nothing()
     {
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         Import::factory()->create(['created_by' => $user->id]);
 
         Livewire::actingAs($user)
@@ -143,7 +143,7 @@ class ImporterTest extends TestCase
 
     public function test_files_paginate_by_per_page()
     {
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         Import::factory()->count(30)->create(['created_by' => $user->id]);
 
         $component = Livewire::actingAs($user)->test(Importer::class);
@@ -156,29 +156,32 @@ class ImporterTest extends TestCase
 
     public function test_select_all_selects_only_current_page_deletable_rows()
     {
-        $me = User::factory()->canImport()->create();
+        // ERS Phase 6A: only Super Users may use the native importer, and
+        // they may delete every import, so select-all picks every row on
+        // the current page. Ordinary importers are refused outright.
+        $me = User::factory()->superuser()->create();
         $someoneElse = User::factory()->canImport()->create();
 
         // 5 mine + 3 theirs = 8 imports on page 1 (fits under the 25 default).
-        $mine = Import::factory()->count(5)->create(['created_by' => $me->id]);
-        Import::factory()->count(3)->create(['created_by' => $someoneElse->id]);
+        $all = Import::factory()->count(5)->create(['created_by' => $me->id])
+            ->merge(Import::factory()->count(3)->create(['created_by' => $someoneElse->id]));
 
         $component = Livewire::actingAs($me)
             ->test(Importer::class)
             ->set('selectAll', true);
 
-        // Only the 5 the caller can delete are picked up.
         $selected = $component->get('selectedIds');
-        $this->assertCount(5, $selected);
         $this->assertEquals(
-            $mine->pluck('id')->sort()->values()->all(),
+            $all->pluck('id')->sort()->values()->all(),
             collect($selected)->map(fn ($id) => (int) $id)->sort()->values()->all()
         );
+
+        Livewire::actingAs($someoneElse)->test(Importer::class)->assertForbidden();
     }
 
     public function test_changing_page_clears_selection()
     {
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         Import::factory()->count(30)->create(['created_by' => $user->id]);
 
         $component = Livewire::actingAs($user)
@@ -203,26 +206,18 @@ class ImporterTest extends TestCase
      */
     public function test_file_list_excludes_imports_owned_by_other_users(): void
     {
+        // ERS Phase 6A: an ordinary importer can no longer open the native
+        // importer at all, so no file list (own or foreign) is rendered.
         Storage::fake();
         $me = User::factory()->canImport()->create();
         $someoneElse = User::factory()->canImport()->create();
 
-        $mine = Import::factory()->count(2)->create(['created_by' => $me->id]);
-        $theirs = Import::factory()->count(3)->create(['created_by' => $someoneElse->id]);
+        Import::factory()->count(2)->create(['created_by' => $me->id]);
+        Import::factory()->count(3)->create(['created_by' => $someoneElse->id]);
 
-        $files = Livewire::actingAs($me)
+        Livewire::actingAs($me)
             ->test(Importer::class)
-            ->get('files');
-
-        $visibleIds = collect($files->items())->pluck('id')->all();
-        sort($visibleIds);
-
-        $expected = $mine->pluck('id')->sort()->values()->all();
-
-        $this->assertSame($expected, $visibleIds, 'File list must only include imports owned by the caller');
-        foreach ($theirs as $import) {
-            $this->assertNotContains($import->id, $visibleIds);
-        }
+            ->assertForbidden();
     }
 
     /**
@@ -235,11 +230,13 @@ class ImporterTest extends TestCase
      */
     public function test_selecting_another_users_import_does_not_leak_preview(): void
     {
+        // ERS Phase 6A: an ordinary importer is refused before selectFile
+        // can run, so another user's preview can never be read.
         Storage::fake();
         $me = User::factory()->canImport()->create();
         $someoneElse = User::factory()->canImport()->create();
 
-        $theirImport = Import::factory()->create([
+        Import::factory()->create([
             'created_by' => $someoneElse->id,
             'header_row' => ['sensitive_column'],
             'import_type' => 'asset',
@@ -247,10 +244,7 @@ class ImporterTest extends TestCase
 
         Livewire::actingAs($me)
             ->test(Importer::class)
-            ->call('selectFile', $theirImport->id)
-            ->assertSet('headerRow', [])
-            ->assertSet('typeOfImport', null)
-            ->assertSet('message_type', 'danger');
+            ->assertForbidden();
     }
 
     /**
@@ -259,7 +253,7 @@ class ImporterTest extends TestCase
     public function test_owner_can_still_select_their_own_import(): void
     {
         Storage::fake();
-        $me = User::factory()->canImport()->create();
+        $me = User::factory()->superuser()->create();
 
         $mine = Import::factory()->create([
             'created_by' => $me->id,
@@ -299,7 +293,7 @@ class ImporterTest extends TestCase
     public function test_selecting_a_file_dispatches_open_import_modal_event(): void
     {
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $import = Import::factory()->create([
             'created_by' => $user->id,
             'header_row' => ['asset tag'],
@@ -314,7 +308,7 @@ class ImporterTest extends TestCase
 
     public function test_selecting_a_file_populates_row_count_from_csv(): void
     {
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
 
         $csv = "asset tag,name,email,checkout date\n"
             ."AH-1,alice,,2025-01-01\n"
@@ -344,7 +338,7 @@ class ImporterTest extends TestCase
     public function test_row_count_is_zero_when_csv_file_is_missing_from_disk(): void
     {
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $import = Import::factory()->create([
             'created_by' => $user->id,
             'file_path' => 'never-existed-'.uniqid().'.csv',
@@ -366,7 +360,7 @@ class ImporterTest extends TestCase
      */
     public function test_selecting_a_file_with_null_header_row_shows_error_and_does_not_crash(): void
     {
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $import = Import::factory()->create([
             'created_by' => $user->id,
             'header_row' => null,
@@ -383,7 +377,7 @@ class ImporterTest extends TestCase
     public function test_next_step_from_type_selection_advances_when_type_is_set(): void
     {
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $import = Import::factory()->create([
             'created_by' => $user->id,
             'header_row' => ['asset tag'],
@@ -401,7 +395,7 @@ class ImporterTest extends TestCase
     public function test_next_step_blocks_when_no_type_is_selected(): void
     {
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $import = Import::factory()->create([
             'created_by' => $user->id,
             'header_row' => ['asset tag'],
@@ -419,7 +413,7 @@ class ImporterTest extends TestCase
     public function test_previous_step_walks_backwards(): void
     {
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $import = Import::factory()->create([
             'created_by' => $user->id,
             'header_row' => ['asset tag'],
@@ -437,7 +431,7 @@ class ImporterTest extends TestCase
     public function test_next_step_from_mapping_blocks_when_required_field_is_unmapped(): void
     {
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         // User import requires first_name (per User::$rules); leave field_map
         // pointing at nothing useful so the required check fires.
         $import = Import::factory()->create([
@@ -466,7 +460,7 @@ class ImporterTest extends TestCase
         // defaulting to "Do not import" (rendered as an empty-value
         // option) with the dropdown available.
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
 
         $import = Import::factory()->create([
             'created_by' => $user->id,
@@ -498,7 +492,7 @@ class ImporterTest extends TestCase
 
     public function test_next_step_from_mapping_advances_when_required_fields_are_mapped(): void
     {
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
 
         $csv = "First Name,Username\nAlice,alice\nBob,bob\n";
         $filename = 'wiz-'.uniqid().'.csv';
@@ -528,7 +522,7 @@ class ImporterTest extends TestCase
 
     public function test_asset_history_required_fields_are_hardcoded_not_from_model(): void
     {
-        Livewire::actingAs(User::factory()->canImport()->create())
+        Livewire::actingAs(User::factory()->superuser()->create())
             ->test(Importer::class)
             ->tap(function ($c) {
                 $this->assertEquals(
@@ -542,7 +536,7 @@ class ImporterTest extends TestCase
     {
         // User::$rules requires first_name; requiredForType('user') should
         // include it even though we didn't hardcode it.
-        Livewire::actingAs(User::factory()->canImport()->create())
+        Livewire::actingAs(User::factory()->superuser()->create())
             ->test(Importer::class)
             ->tap(function ($c) {
                 $required = $c->instance()->requiredForType('user');
@@ -558,7 +552,7 @@ class ImporterTest extends TestCase
         // per-row whether the caller intends create or update, so it must
         // not enforce seats at wizard level. Per-row server-side validation
         // still enforces seats on License::save() for genuine creates.
-        Livewire::actingAs(User::factory()->canImport()->create())
+        Livewire::actingAs(User::factory()->superuser()->create())
             ->test(Importer::class)
             ->tap(function ($c) {
                 $required = $c->instance()->requiredForType('license');
@@ -587,7 +581,7 @@ class ImporterTest extends TestCase
         // Second fieldset that does NOT include the custom field at all.
         CustomFieldset::factory()->create();
 
-        Livewire::actingAs(User::factory()->canImport()->create())
+        Livewire::actingAs(User::factory()->superuser()->create())
             ->test(Importer::class)
             ->tap(function ($c) use ($customField) {
                 $required = $c->instance()->requiredForType('asset');
@@ -606,7 +600,7 @@ class ImporterTest extends TestCase
         // never runs and users land on step 2 with an all-null field_map.
         // nextStep() 1->2 now re-runs the auto-map so headers still bind.
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $import = Import::factory()->create([
             'created_by' => $user->id,
             'import_type' => 'user',
@@ -632,7 +626,7 @@ class ImporterTest extends TestCase
         // to the asset_tag target field, even though the target's display
         // label is "Asset Tag" (with a space).
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $import = Import::factory()->create([
             'created_by' => $user->id,
             'import_type' => 'asset',
@@ -654,20 +648,15 @@ class ImporterTest extends TestCase
 
     public function test_demo_mode_blocks_start_processing_for_non_superadmin(): void
     {
-        // With lock_passwords set the Process button on the wizard is
-        // disabled in the blade, but a hand-crafted Livewire call would
-        // still fire the action - guard it server-side so the modal can't
-        // flip into processing mode either. Superadmins bypass this gate
-        // in demo mode so the seeded demo imports can actually be run.
+        // ERS Phase 6A: outside and inside demo mode a non-Super-User is
+        // refused before any action, so processing can never start.
         config(['app.lock_passwords' => true]);
 
         $user = User::factory()->canImport()->create();
 
         Livewire::actingAs($user)
             ->test(Importer::class)
-            ->call('startProcessing')
-            ->assertSet('processing', false)
-            ->assertSet('message_type', 'danger');
+            ->assertForbidden();
     }
 
     public function test_demo_mode_allows_start_processing_for_superadmin(): void
@@ -687,7 +676,7 @@ class ImporterTest extends TestCase
         config(['app.lock_passwords' => true]);
 
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $import = Import::factory()->create(['created_by' => $user->id]);
 
         Livewire::actingAs($user)
@@ -703,7 +692,7 @@ class ImporterTest extends TestCase
         config(['app.lock_passwords' => true]);
 
         Storage::fake();
-        $user = User::factory()->canImport()->create();
+        $user = User::factory()->superuser()->create();
         $imports = Import::factory()->count(2)->create(['created_by' => $user->id]);
 
         Livewire::actingAs($user)
@@ -723,7 +712,7 @@ class ImporterTest extends TestCase
         // pointed assetModel at 'item_name' but AssetModel's mapping
         // dropdown uses 'name' as the option value. Result was that the
         // dropdown never lit up as required for a mapped Name column.
-        Livewire::actingAs(User::factory()->canImport()->create())
+        Livewire::actingAs(User::factory()->superuser()->create())
             ->test(Importer::class)
             ->tap(function ($c) {
                 $required = $c->instance()->requiredForType('assetModel');

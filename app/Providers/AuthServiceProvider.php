@@ -198,6 +198,15 @@ class AuthServiceProvider extends ServiceProvider
             }
         });
 
+        // ERS Phase 6A: the native multi-type importer (/import and the
+        // api/v1/imports endpoints) creates and updates records without the
+        // asset-category permissions, so only a real Super User may use it.
+        // Everyone else imports assets through the secure /hardware/import
+        // workflow. CLI imports are unaffected.
+        Gate::define('import.legacy', function ($user) {
+            return $user->isSuperUser() === true;
+        });
+
         Gate::define('assets.view.encrypted_custom_fields', function ($user) {
             if ($user->hasAccess('assets.view.encrypted_custom_fields')) {
                 return true;

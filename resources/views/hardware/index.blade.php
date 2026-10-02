@@ -59,6 +59,16 @@
 
 {{-- Page content --}}
 @section('content')
+    @if (($canImportIntoCategory ?? false) && $assetCategory)
+        {{-- ERS Phase 6A: this final category's own CSV import entry point. --}}
+        <div class="row">
+            <div class="col-md-12 text-right" style="margin-bottom: 10px;">
+                <a href="{{ route('hardware.import.index', ['category' => $assetCategory->id()]) }}" class="btn btn-primary" id="asset-category-import">
+                    <x-icon type="import" /> {{ trans('admin/hardware/import.import_csv') }}
+                </a>
+            </div>
+        </div>
+    @endif
     <x-container>
         <x-box name="assets">
             <x-table.assets

@@ -131,14 +131,15 @@ The system uses CSV only. There is no Google Sheets API or synchronization.
 
 Import flow:
 
-1. Select an authorised final subcategory
-2. Upload one CSV
+1. Upload one CSV
+2. Select an authorised final subcategory and the model, status, company and location sources
 3. Manually map CSV columns
-4. Validate
-5. Preview
-6. Confirm import
+4. Review the mapping
+5. Validate
+6. Preview
+7. Confirm import
 
-The mapping interface supports drag-and-drop, dropdown mapping, ignored columns, sample values and reusable templates.
+The mapping interface supports drag-and-drop, dropdown mapping, ignored columns and sample values.
 
 CSV headers do not need to match Snipe-IT field names.
 
@@ -152,6 +153,26 @@ Initial import rules:
 - Duplicate serial numbers rejected
 - No automatic master-data creation
 - Downloadable error report
+
+### 8.1 Approved Phase 6 decisions
+
+- CSV files only (comma-separated, UTF-8). No Google Sheets integration.
+- The native Snipe-IT importer (`/import` and its API endpoints) is restricted to Super Admin. Other users import assets through the secure asset import (`/hardware/import`). Command-line imports are unchanged.
+- Starting an import requires the global CSV Import permission, the global Assets Create permission and category Create on the selected final category. Category View is not required. There is no separate category-level Import permission.
+- Super Admin bypasses category grants but can still only select live, final asset categories.
+- Two model modes: one fixed existing model for every row, or a mapped Model column (optionally with Model Number) resolved per row against the live models of the selected category.
+- Status comes from one fixed existing status label or a mapped column. Company and location are optional and come from one fixed existing record or a mapped column; Full Multiple Company Support scoping applies.
+- Import state (file, hash, target, mapping) is kept in a secure server-side session owned by the importing user, addressed by a random identifier, and expires after 24 hours if not completed. Mappings are stored by column position and tied to the file's SHA-256.
+- No master data is ever created automatically: models, categories, status labels, companies, departments, locations, users, suppliers, manufacturers, custom fields and fieldsets must already exist.
+- Validation and execution are all-or-nothing (later phases).
+- Limits: 10 MB per file and 5,000 data rows.
+- Dates must use ISO format `YYYY-MM-DD`.
+- No automatic asset tags: every row needs an asset tag.
+- Asset tags of deleted assets cannot be reused.
+- Duplicate non-empty serial numbers are rejected (checked during validation in Phase 6B).
+- Column mapping is done with drag-and-drop plus an accessible dropdown. Suggestions are limited to exact matches of Snipe-IT field labels and must be reviewed and saved by the user.
+- Reusable mapping templates are deferred to a later phase.
+- No pre-import backup step.
 
 ## 9. Fixed Assets and Accessories
 

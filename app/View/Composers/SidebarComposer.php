@@ -10,9 +10,11 @@ namespace App\View\Composers;
 
 use App\Models\Asset;
 use App\Models\Setting;
+use App\Models\User;
 use App\Services\AssetCategoryNavigation;
 use App\Services\AssetCategoryPermissionService;
 use App\Services\AssetCategorySelection;
+use App\Services\AssetImport\AssetImportAuthorizer;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
@@ -75,6 +77,16 @@ class SidebarComposer
             }
         } catch (\Exception $e) {
             Log::debug($e);
+        }
+
+        // ERS Phase 6A: the secure asset CSV import link follows exactly the
+        // rule the import controller enforces.
+        try {
+            $user = request()->user();
+            $view->with('can_use_secure_asset_import', $user instanceof User && app(AssetImportAuthorizer::class)->mayUse($user));
+        } catch (\Exception $e) {
+            Log::debug($e);
+            $view->with('can_use_secure_asset_import', false);
         }
     }
 }

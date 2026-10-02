@@ -40,7 +40,8 @@ class AssetImportCreatedByTest extends TestCase
         Company::factory()->create();
         AssetModel::factory()->for($category, 'category')->create(['name' => 'Import Test Model']);
 
-        $importer = User::factory()->viewAssets()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $importer = User::factory()->superuser()->create();
 
         $csv = "asset tag,item name,category,status,model name\n";
         $csv .= "CREATEDBY-001,Import Created Asset,{$category->name},{$statusLabel->name},Import Test Model\n";
@@ -104,7 +105,8 @@ class AssetImportCreatedByTest extends TestCase
                 'created_by' => $originalOwner->id,
             ]);
 
-        $importer = User::factory()->viewAssets()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $importer = User::factory()->superuser()->create();
 
         $csv = "asset tag,item name,category,status\n";
         $csv .= "CREATEDBY-002,Renamed Via Import,{$category->name},{$statusLabel->name}\n";
@@ -155,7 +157,8 @@ class AssetImportCreatedByTest extends TestCase
         Company::factory()->create();
         AssetModel::factory()->for($category, 'category')->create(['name' => 'Auto User Test Model']);
 
-        $importer = User::factory()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $importer = User::factory()->superuser()->create();
 
         $csv = "asset tag,item name,category,status,model name,full name,username\n";
         $csv .= "CREATEDBY-003,Import Asset Checkout,{$category->name},{$statusLabel->name},Auto User Test Model,Import Target User,import_target_user\n";
@@ -207,7 +210,8 @@ class AssetImportCreatedByTest extends TestCase
         Company::factory()->create();
         AssetModel::factory()->for($category, 'category')->create(['name' => 'Auto Dept Test Model']);
 
-        $importer = User::factory()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $importer = User::factory()->superuser()->create();
 
         $csv = "asset tag,item name,category,status,model name,full name,username,department\n";
         $csv .= "CREATEDBY-004,Import Dept Asset,{$category->name},{$statusLabel->name},Auto Dept Test Model,Dept Target User,dept_target_user,Import Test Department\n";

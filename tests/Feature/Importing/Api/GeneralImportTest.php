@@ -14,7 +14,8 @@ class GeneralImportTest extends ImportDataTestCase
 
     public function test_requires_existing_import()
     {
-        $this->actingAsForApi(User::factory()->canImport()->create());
+        // ERS Phase 6A: only Super Users reach the native importer.
+        $this->actingAsForApi(User::factory()->superuser()->create());
 
         $this->importFileResponse(['import' => 9999, 'import-type' => 'accessory'])
             ->assertStatusMessageIs('import-errors');

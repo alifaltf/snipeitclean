@@ -43,10 +43,14 @@ class ImportUsersTest extends ImportDataTestCase implements TestsPermissionsRequ
     #[Test]
     public function user_with_import_assets_permission_can_import_users(): void
     {
-        $this->actingAsForApi(User::factory()->canImport()->create());
-
+        // ERS Phase 6A: the native importer is Super-Admin-only. The import
+        // permission alone is refused; a Super User can still import.
         $import = Import::factory()->users()->create();
 
+        $this->actingAsForApi(User::factory()->canImport()->create());
+        $this->importFileResponse(['import' => $import->id])->assertForbidden();
+
+        $this->actingAsForApi(User::factory()->superuser()->create());
         $this->importFileResponse(['import' => $import->id])->assertOk();
     }
 
@@ -519,9 +523,11 @@ class ImportUsersTest extends ImportDataTestCase implements TestsPermissionsRequ
             ]),
         ]);
 
+        // ERS Phase 6A: an import-only user is refused by the native
+        // importer before any row is read.
         $this->actingAsForApi(User::factory()->canImport()->create());
         $import = Import::factory()->users()->create(['file_path' => $importFileBuilder->saveToImportsDirectory()]);
-        $this->importFileResponse(['import' => $import->id, 'import-update' => true])->assertOk();
+        $this->importFileResponse(['import' => $import->id, 'import-update' => true])->assertForbidden();
 
         $this->assertEquals('original@example.com', $victim->refresh()->email);
     }
@@ -541,8 +547,15 @@ class ImportUsersTest extends ImportDataTestCase implements TestsPermissionsRequ
             ]),
         ]);
 
-        $this->actingAsForApi(User::factory()->canImport()->editUsers()->create());
         $import = Import::factory()->users()->create(['file_path' => $importFileBuilder->saveToImportsDirectory()]);
+
+        // ERS Phase 6A: import + users.edit is no longer enough for the
+        // native importer; a Super User can still update auth fields.
+        $this->actingAsForApi(User::factory()->canImport()->editUsers()->create());
+        $this->importFileResponse(['import' => $import->id, 'import-update' => true])->assertForbidden();
+        $this->assertEquals('original@example.com', $target->refresh()->email);
+
+        $this->actingAsForApi(User::factory()->superuser()->create());
         $this->importFileResponse(['import' => $import->id, 'import-update' => true])->assertOk();
 
         $this->assertEquals('updated@example.com', $target->refresh()->email);

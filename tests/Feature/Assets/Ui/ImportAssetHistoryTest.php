@@ -14,6 +14,7 @@ use Tests\TestCase;
 class ImportAssetHistoryTest extends TestCase
 {
     use CleansUpImportFiles;
+
     // ERS Phase 5B1: upstream test written before asset-category permissions.
     use UsesLegacyAssetCategoryCompatibility;
 
@@ -38,6 +39,8 @@ class ImportAssetHistoryTest extends TestCase
         // mutate the demo DB via any leftover Import row. Superadmins
         // are allowed through so they can exercise the seeded demo
         // samples end to end (see companion test below).
+        // ERS Phase 6A: non-superadmins are now refused (403) by the
+        // native importer's Super-Admin-only gate before demo mode matters.
         config(['app.lock_passwords' => true]);
 
         $actor = User::factory()->canImport()->create();
@@ -47,7 +50,7 @@ class ImportAssetHistoryTest extends TestCase
         $this->postJson(
             route('api.imports.importFile', ['import' => $import->id]),
             ['import-type' => 'assetHistory', 'import' => $import->id],
-        )->assertStatus(422);
+        )->assertForbidden();
     }
 
     public function test_process_endpoint_allowed_in_demo_mode_for_superadmin(): void
@@ -90,7 +93,8 @@ class ImportAssetHistoryTest extends TestCase
 
     public function test_asset_history_import_creates_actionlogs_and_assigns_user(): void
     {
-        $actor = User::factory()->viewAssets()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $actor = User::factory()->superuser()->create();
         $target = User::factory()->create(['username' => 'target.user']);
         $asset = Asset::factory()->create([
             'asset_tag' => 'AHIST-1',
@@ -146,7 +150,8 @@ class ImportAssetHistoryTest extends TestCase
 
     public function test_asset_history_import_does_not_reassign_when_checkin_is_past(): void
     {
-        $actor = User::factory()->viewAssets()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $actor = User::factory()->superuser()->create();
         $target = User::factory()->create(['username' => 'past.user']);
         $asset = Asset::factory()->create([
             'asset_tag' => 'AHIST-2',
@@ -195,7 +200,8 @@ class ImportAssetHistoryTest extends TestCase
 
     public function test_asset_history_import_skips_unknown_asset_tag(): void
     {
-        $actor = User::factory()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $actor = User::factory()->superuser()->create();
         User::factory()->create(['username' => 'someone']);
 
         $file = AssetHistoryImportFileBuilder::new([
@@ -229,7 +235,8 @@ class ImportAssetHistoryTest extends TestCase
 
     public function test_asset_history_import_skips_row_when_user_not_matched(): void
     {
-        $actor = User::factory()->canImport()->create();
+        // ERS Phase 6A: the native importer is Super-Admin-only.
+        $actor = User::factory()->superuser()->create();
         $asset = Asset::factory()->create([
             'asset_tag' => 'AHIST-3',
             'assigned_to' => null,

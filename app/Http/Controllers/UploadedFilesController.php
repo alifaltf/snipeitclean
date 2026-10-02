@@ -181,6 +181,7 @@ class UploadedFilesController extends Controller
     {
 
         $this->authorize('import');
+        $this->authorize('import.legacy');
 
         if ($import = Import::find($import->id)) {
 

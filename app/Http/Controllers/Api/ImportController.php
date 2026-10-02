@@ -29,6 +29,7 @@ class ImportController extends Controller
     public function index(): JsonResponse|array
     {
         $this->authorize('import');
+        $this->authorize('import.legacy');
 
         // Silently scope to the caller's own imports unless they're a superuser.
         // The `import` permission is grantable to any user, but a stored import
@@ -50,6 +51,7 @@ class ImportController extends Controller
     public function store(): JsonResponse
     {
         $this->authorize('import');
+        $this->authorize('import.legacy');
         if (! config('app.lock_passwords')) {
             $files = Request::file('files');
             $path = config('app.private_uploads').'/imports';
@@ -264,6 +266,7 @@ class ImportController extends Controller
     public function process(ItemImportRequest $request, $import_id): JsonResponse
     {
         $this->authorize('import');
+        $this->authorize('import.legacy');
 
         // Demo mode: uploads stay blocked at store(), but superadmins can
         // still process the seeded sample imports so the demo shows off
@@ -419,6 +422,7 @@ class ImportController extends Controller
     public function destroy($import_id): JsonResponse
     {
         $this->authorize('import');
+        $this->authorize('import.legacy');
 
         if (config('app.lock_passwords')) {
             return response()->json(Helper::formatStandardApiResponse('error', null, trans('general.feature_disabled')), 422);

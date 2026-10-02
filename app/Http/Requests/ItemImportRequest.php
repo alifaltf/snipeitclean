@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Import;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 
 class ItemImportRequest extends FormRequest
@@ -15,7 +16,9 @@ class ItemImportRequest extends FormRequest
      */
     public function authorize()
     {
-        return true;
+        // ERS Phase 6A: the native importer is Super-Admin-only. Checked here
+        // too so the request is refused before any input is validated.
+        return Gate::allows('import') && Gate::allows('import.legacy');
     }
 
     /**

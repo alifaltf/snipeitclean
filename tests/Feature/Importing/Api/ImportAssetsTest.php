@@ -22,6 +22,7 @@ use Tests\Support\UsesLegacyAssetCategoryCompatibility;
 class ImportAssetsTest extends ImportDataTestCase implements TestsPermissionsRequirement
 {
     use CleansUpImportFiles;
+
     // ERS Phase 5B1: upstream test written before asset-category permissions.
     use UsesLegacyAssetCategoryCompatibility;
     use WithFaker;
@@ -46,10 +47,14 @@ class ImportAssetsTest extends ImportDataTestCase implements TestsPermissionsReq
     #[Test]
     public function user_with_import_assets_permission_can_import_assets(): void
     {
-        $this->actingAsForApi(User::factory()->canImport()->create());
-
+        // ERS Phase 6A: the native importer is Super-Admin-only. The import
+        // permission alone is refused; a Super User can still import.
         $import = Import::factory()->asset()->create();
 
+        $this->actingAsForApi(User::factory()->canImport()->create());
+        $this->importFileResponse(['import' => $import->id])->assertForbidden();
+
+        $this->actingAsForApi(User::factory()->superuser()->create());
         $this->importFileResponse(['import' => $import->id])->assertOk();
     }
 
@@ -859,9 +864,10 @@ class ImportAssetsTest extends ImportDataTestCase implements TestsPermissionsReq
         // #19200: when an asset CSV references a brand-new username, the base
         // Importer::createOrFetchUser side-effects a new user with no company
         // pivot. Under floater mode that previously promoted the new user to
-        // system-wide visibility — exploitable as an asset import path. The
-        // guard refuses the user creation for actors who can't grant floater
-        // status; the asset still imports, it just doesn't get checked out.
+        // system-wide visibility — exploitable as an asset import path.
+        // ERS Phase 6A: a non-Super-User can no longer run the native
+        // importer at all, so neither the phantom user nor the asset is
+        // created.
         $this->settings->enableFloaterMode();
 
         $company = Company::factory()->create();
@@ -878,11 +884,9 @@ class ImportAssetsTest extends ImportDataTestCase implements TestsPermissionsReq
 
         $this->actingAsForApi($importer);
         $import = Import::factory()->asset()->create(['file_path' => $importFileBuilder->saveToImportsDirectory()]);
-        $this->importFileResponse(['import' => $import->id])->assertOk();
+        $this->importFileResponse(['import' => $import->id])->assertForbidden();
 
         $this->assertDatabaseMissing('users', ['username' => 'phantom-floater-user']);
-
-        $newAsset = Asset::where('serial', $importFileBuilder->firstRow()['serialNumber'])->sole();
-        $this->assertNull($newAsset->assigned_to, 'Asset imports but is not checked out to the rejected user');
+        $this->assertSame(0, Asset::withoutGlobalScopes()->where('serial', $importFileBuilder->firstRow()['serialNumber'])->count());
     }
 }

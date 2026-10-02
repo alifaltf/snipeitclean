@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Assets\AssetCheckinController;
 use App\Http\Controllers\Assets\AssetCheckoutController;
+use App\Http\Controllers\Assets\AssetImportController;
 use App\Http\Controllers\Assets\AssetsController;
 use App\Http\Controllers\Assets\BulkAssetsController;
 use App\Http\Controllers\BulkMaintenancesController;
@@ -26,6 +27,42 @@ Route::group(
     ],
 
     function () {
+
+        // ERS Phase 6A: secure asset CSV import (upload, target, mapping,
+        // review). Registered before the hardware resource so "import" is
+        // never treated as an asset id. Every step also needs the global
+        // import permission; the controller checks the rest.
+        Route::middleware('can:import')
+            ->prefix('import')
+            ->name('hardware.import.')
+            ->group(function () {
+                Route::get('/', [AssetImportController::class, 'index'])
+                    ->name('index')
+                    ->breadcrumbs(fn (Trail $trail) => $trail->parent('hardware.index')
+                        ->push(trans('admin/hardware/import.title'), route('hardware.import.index'))
+                    );
+                Route::post('/', [AssetImportController::class, 'store'])->name('store');
+
+                Route::get('{session}/target', [AssetImportController::class, 'editTarget'])
+                    ->name('target')
+                    ->breadcrumbs(fn (Trail $trail, string $session) => $trail->parent('hardware.import.index')
+                        ->push(trans('admin/hardware/import.steps.target'))
+                    );
+                Route::post('{session}/target', [AssetImportController::class, 'updateTarget'])->name('target.update');
+
+                Route::get('{session}/mapping', [AssetImportController::class, 'editMapping'])
+                    ->name('mapping')
+                    ->breadcrumbs(fn (Trail $trail, string $session) => $trail->parent('hardware.import.index')
+                        ->push(trans('admin/hardware/import.steps.mapping'))
+                    );
+                Route::post('{session}/mapping', [AssetImportController::class, 'updateMapping'])->name('mapping.update');
+
+                Route::get('{session}/review', [AssetImportController::class, 'review'])
+                    ->name('review')
+                    ->breadcrumbs(fn (Trail $trail, string $session) => $trail->parent('hardware.import.index')
+                        ->push(trans('admin/hardware/import.steps.review'))
+                    );
+            });
 
         Route::get('bulkaudit', [AssetsController::class, 'quickScan'])
             ->name('assets.bulkaudit')

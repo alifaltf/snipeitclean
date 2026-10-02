@@ -160,9 +160,12 @@ class AssetCategoryWriteRegressionTest extends TestCase
     }
 
     #[Test]
-    public function csv_import_is_not_category_gated(): void
+    public function the_native_csv_import_is_super_admin_only(): void
     {
-        $importer = $this->writer([], ['assets.view' => '1', 'assets.create' => '1', 'assets.edit' => '1', 'import' => '1']);
+        // ERS Phase 6A: the native importer bypasses asset-category
+        // permissions, so it is restricted to Super Admin. Ordinary users
+        // import assets through the secure /hardware/import workflow.
+        $importer = $this->writer([['leaf1' => ['view', 'create']]], ['assets.view' => '1', 'assets.create' => '1', 'assets.edit' => '1', 'import' => '1']);
         $file = AssetsImportFileBuilder::new();
         $row = $file->firstRow();
         $import = Import::factory()->asset()->create(['file_path' => $file->saveToImportsDirectory(), 'created_by' => $importer->id]);
@@ -174,9 +177,13 @@ class AssetCategoryWriteRegressionTest extends TestCase
 
         $this->actingAsForApi($importer)
             ->postJson(route('api.imports.importFile', ['import' => $import->id]), ['import' => $import->id, 'import-type' => 'asset'])
+            ->assertForbidden();
+        $this->assertSame(0, Asset::withoutGlobalScopes()->where('serial', $row['serialNumber'])->count());
+
+        $this->actingAsForApi($this->superUser())
+            ->postJson(route('api.imports.importFile', ['import' => $import->id]), ['import' => $import->id, 'import-type' => 'asset'])
             ->assertOk()
             ->assertJsonPath('payload.tally.created', 1);
-
         $this->assertSame(1, Asset::withoutGlobalScopes()->where('serial', $row['serialNumber'])->count());
     }
 

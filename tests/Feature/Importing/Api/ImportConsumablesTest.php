@@ -40,10 +40,14 @@ class ImportConsumablesTest extends ImportDataTestCase implements TestsPermissio
     #[Test]
     public function user_with_import_assets_permission_can_import_consumables(): void
     {
-        $this->actingAsForApi(User::factory()->canImport()->create());
-
+        // ERS Phase 6A: the native importer is Super-Admin-only. The import
+        // permission alone is refused; a Super User can still import.
         $import = Import::factory()->consumable()->create();
 
+        $this->actingAsForApi(User::factory()->canImport()->create());
+        $this->importFileResponse(['import' => $import->id])->assertForbidden();
+
+        $this->actingAsForApi(User::factory()->superuser()->create());
         $this->importFileResponse(['import' => $import->id])->assertOk();
     }
 
