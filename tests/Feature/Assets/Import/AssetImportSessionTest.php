@@ -127,7 +127,17 @@ class AssetImportSessionTest extends TestCase
         $user = $this->importer();
         $session = $this->mappedSession($user);
 
-        foreach ([AssetImportSession::STATE_VALIDATED, AssetImportSession::STATE_IMPORTING, AssetImportSession::STATE_COMPLETED, AssetImportSession::STATE_FAILED, AssetImportSession::STATE_EXPIRED] as $state) {
+        // ERS Phase 6B: validated and validation_failed sessions stay open
+        // (they can be reconfigured and validated again); importing and
+        // finished sessions do not.
+        foreach ([AssetImportSession::STATE_VALIDATED, AssetImportSession::STATE_VALIDATION_FAILED] as $state) {
+            $session->state = $state;
+            $session->save();
+            $this->actingAs($user, 'web')->get(route('hardware.import.target', $session->public_id))->assertOk();
+            $this->actingAs($user, 'web')->get(route('hardware.import.review', $session->public_id))->assertOk();
+        }
+
+        foreach ([AssetImportSession::STATE_IMPORTING, AssetImportSession::STATE_COMPLETED, AssetImportSession::STATE_FAILED, AssetImportSession::STATE_EXPIRED] as $state) {
             $session->state = $state;
             $session->save();
             foreach ($this->answers($user, $session->public_id) as $route => $answer) {

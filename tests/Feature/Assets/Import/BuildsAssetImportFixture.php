@@ -109,10 +109,50 @@ trait BuildsAssetImportFixture
         return $session->fresh();
     }
 
+    /**
+     * Upload $csv, save the target (defaults overridden by $target) and the
+     * mapping (column position => destination key); the session is ready to
+     * validate.
+     */
+    protected function configuredSession(User $user, string $csv, array $target, array $mapping): AssetImportSession
+    {
+        $session = $this->newSession($user, $csv);
+        $this->postTarget($user, $session, $target)->assertSessionHasNoErrors();
+        $this->postMapping($user, $session, $mapping)->assertSessionHasNoErrors();
+
+        return $session->fresh();
+    }
+
+    protected function postValidate(User $user, AssetImportSession $session): TestResponse
+    {
+        return $this->actingAs($user, 'web')->post(route('hardware.import.validate', $session->public_id));
+    }
+
+    /** Run the Phase 6B validator directly as $user. */
+    protected function validationOf(User $user, AssetImportSession $session): \App\Services\AssetImport\Validation\AssetImportValidationResult
+    {
+        $this->actingAs($user, 'web');
+
+        return app(\App\Services\AssetImport\Validation\AssetImportValidator::class)->validate($session->fresh(), $user);
+    }
+
+    /** @return array<int, list<string>> row number => "field: message" errors */
+    protected function errorsByRow(\App\Services\AssetImport\Validation\AssetImportValidationResult $result): array
+    {
+        $errors = [];
+        foreach ($result->rows as $row) {
+            $errors[$row->row] = array_map(fn ($e) => $e->field.': '.$e->message, $row->errors);
+        }
+
+        return $errors;
+    }
+
     /** A custom field in a new fieldset assigned to $model. */
     protected function customFieldOn(AssetModel $model, array $attributes = [], bool $required = false): CustomField
     {
         $field = CustomField::factory()->create(array_merge(['name' => $this->randomName('Field'), 'format' => ''], $attributes));
+        $this->assertNotNull($field->id, 'The custom field fixture was not saved: '.json_encode($field->getErrors()?->toArray()));
+        $model->refresh();
         $fieldset = $model->fieldset_id ? CustomFieldset::query()->find($model->fieldset_id) : CustomFieldset::factory()->create();
         $fieldset->fields()->attach($field, ['order' => 1, 'required' => $required]);
         DB::table('models')->where('id', $model->id)->update(['fieldset_id' => $fieldset->id]);

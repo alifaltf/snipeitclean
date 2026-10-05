@@ -47,14 +47,14 @@ class AssetImportMappingTest extends TestCase
         foreach (['Asset Tag', 'Serial Number', 'Laptop Model', 'Notes'] as $index => $header) {
             $page->assertSee('name="mapping['.$index.']"', false)->assertSee($header);
         }
-        foreach (['standard:asset_tag', 'standard:serial', 'standard:name', 'standard:purchase_date', 'standard:next_audit_date'] as $key) {
+        foreach (['standard:asset_tag', 'standard:serial', 'standard:name', 'standard:purchase_date', 'standard:next_audit_date', 'standard:notes'] as $key) {
             $page->assertSee('value="'.$key.'"', false);
         }
         // Fixed model/status and switched-off company/location are not offered.
         foreach (['standard:model', 'standard:model_number', 'standard:status', 'standard:company', 'standard:location'] as $key) {
             $page->assertDontSee('value="'.$key.'"', false);
         }
-        foreach (['id', 'created_by', 'assigned_to', 'last_checkout', 'checkout_counter', 'deleted_at', 'image', 'notes', 'department'] as $field) {
+        foreach (['id', 'created_by', 'assigned_to', 'last_checkout', 'checkout_counter', 'deleted_at', 'image', 'department'] as $field) {
             $page->assertDontSee('value="standard:'.$field.'"', false);
         }
     }
@@ -134,7 +134,7 @@ class AssetImportMappingTest extends TestCase
         $elsewhere = $this->customFieldOn($this->modelIn('other'));
 
         foreach ([
-            'standard:id', 'standard:created_by', 'standard:assigned_to', 'standard:notes', 'standard:image',
+            'standard:id', 'standard:created_by', 'standard:assigned_to', 'standard:image',
             'standard:department', 'standard:deleted_at', 'standard:category', 'asset_tag', 'Asset Tag',
             'custom_field:999999', 'custom_field:'.$elsewhere->id, 'custom_field:abc', 'custom_field:', 'raw:serial',
         ] as $key) {
@@ -268,7 +268,7 @@ class AssetImportMappingTest extends TestCase
             ->assertSee($this->status->name)
             ->assertSee('Laptop Model')
             ->assertSee('Notes')
-            ->assertSee(trans('admin/hardware/import.review.next_phase'))
+            ->assertSee(trans('admin/hardware/import.review.validate_help'))
             ->assertDontSee('T-1')
             ->assertDontSee('Model A')
             ->assertDontSee('S-2');

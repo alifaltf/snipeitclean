@@ -17,8 +17,9 @@ use Illuminate\Validation\ValidationException;
  *
  * Every id is re-checked against what the user may use (see
  * AssetImportTargetCheck). Saving always returns the session to
- * target_selected so the mapping has to be saved again; a changed
- * category, or a mapping that no longer fits the new sources, is cleared.
+ * target_selected and clears any validation, so the mapping has to be
+ * saved and validated again; a changed category, or a mapping that no
+ * longer fits the new sources, is cleared.
  */
 final class ConfigureAssetImportTarget
 {
@@ -48,6 +49,7 @@ final class ConfigureAssetImportTarget
                 $session->{$column} = $value;
             }
             $session->state = AssetImportSession::STATE_TARGET_SELECTED;
+            $session->validated_at = null;
 
             if ($categoryChanged || ! $this->mappingStillFits($session, $user)) {
                 $session->mapping = null;

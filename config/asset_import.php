@@ -33,6 +33,9 @@ return [
     'sample_rows' => 3,
     'sample_value_length' => 60,
 
+    // Rows per page on the validation preview (Phase 6B).
+    'preview_page_size' => 50,
+
     // Filesystem disk for stored uploads. Null means the application's
     // default (private) disk, the same one used for other private uploads.
     'disk' => null,

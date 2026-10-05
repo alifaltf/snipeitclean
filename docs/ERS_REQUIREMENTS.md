@@ -174,6 +174,19 @@ Initial import rules:
 - Reusable mapping templates are deferred to a later phase.
 - No pre-import backup step.
 
+### 8.2 Phase 6B validation and preview
+
+- Validation checks every mapped row and writes nothing except the import session's state: `validated` (with `validated_at`) only when every row passes, otherwise `validation_failed`. Saving the target or mapping again clears the validation. Validation can be repeated at any time.
+- Phase 6C must validate again inside the transaction that creates assets; a recorded validation is never sufficient on its own.
+- Row numbers count CSV records: the header is row 1 and the first data row is row 2.
+- Asset tags are required, unique within the file and never reuse the tag of a live or deleted asset. Non-empty serial numbers follow the same rule. Comparisons ignore letter case.
+- Dates must be `YYYY-MM-DD`; purchase cost must be a plain number with at most two decimals; warranty must be a whole number of months from 0 to 240; booleans accept only `1`, `0`, `true`, `false`, `yes`, `no`, ignoring letter case and surrounding spaces; any other non-empty value is an error. A blank or unmapped Requestable/BYOD value is left out, so the asset keeps its default. A required boolean custom field still needs a value.
+- Notes can be mapped. Line breaks inside a quoted cell are kept; only surrounding spaces are trimmed. Snipe-IT's own Notes rule applies, and the text must also fit the database column (65,535 bytes). The preview shows at most the first 500 characters of a note; the full text is validated and kept.
+- Models, status labels, companies, locations and suppliers are matched by exact name (ignoring letter case and extra spaces). Missing or ambiguous names are errors; nothing is created. Models only match live models of the selected category; companies and locations only match records within the user's company scope, and a location must belong to the asset's company where Snipe-IT requires it.
+- Custom fields are validated against the fieldset of each row's own model. A value for a field that does not apply to that model is an error. Encrypted values are always masked.
+- Encrypted custom fields marked unique cannot be filled by import: their values are encrypted with a random component, so neither Snipe-IT nor the import can check them against existing assets without decrypting every stored value. Any non-empty value mapped to such a field is a row error, so the import cannot proceed; leave the column empty and enter the value on the asset afterwards. A required encrypted unique field therefore blocks import for that model.
+- The result page shows totals, a paginated preview and every error. A CSV error report (row number, asset tag, field, error) can be downloaded; it is generated on request, never stored, and protected against spreadsheet formulas.
+
 ## 9. Fixed Assets and Accessories
 
 Individually tracked or high-value items are Assets.

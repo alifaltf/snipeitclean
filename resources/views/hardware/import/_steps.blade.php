@@ -1,6 +1,6 @@
-{{-- ERS Phase 6A: step indicator for the secure asset CSV import. --}}
+{{-- ERS Phase 6A/6B: step indicator for the secure asset CSV import. --}}
 @php
-    $ersImportSteps = ['upload', 'target', 'mapping', 'review'];
+    $ersImportSteps = ['upload', 'target', 'mapping', 'review', 'validate', 'preview'];
     $ersImportCurrent = array_search($current, $ersImportSteps, true);
 @endphp
 <ol class="list-inline" aria-label="{{ trans('admin/hardware/import.title') }}" style="margin-bottom: 15px;">

@@ -62,6 +62,15 @@ Route::group(
                     ->breadcrumbs(fn (Trail $trail, string $session) => $trail->parent('hardware.import.index')
                         ->push(trans('admin/hardware/import.steps.review'))
                     );
+
+                // ERS Phase 6B: validate every row, preview, error report.
+                Route::post('{session}/validate', [AssetImportController::class, 'validateRows'])->name('validate');
+                Route::get('{session}/results', [AssetImportController::class, 'results'])
+                    ->name('results')
+                    ->breadcrumbs(fn (Trail $trail, string $session) => $trail->parent('hardware.import.index')
+                        ->push(trans('admin/hardware/import.steps.preview'))
+                    );
+                Route::get('{session}/errors', [AssetImportController::class, 'errorReport'])->name('errors');
             });
 
         Route::get('bulkaudit', [AssetsController::class, 'quickScan'])

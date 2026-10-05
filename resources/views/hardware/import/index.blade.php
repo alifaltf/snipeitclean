@@ -67,7 +67,12 @@
                                 <td>{{ trans('admin/hardware/import.states.'.$importSession->state) }}</td>
                                 <td>{{ \App\Helpers\Helper::getFormattedDateObject($importSession->expires_at, 'datetime', false) }}</td>
                                 <td class="text-right">
-                                    <a class="btn btn-sm btn-default" href="{{ route($importSession->state === \App\Models\AssetImportSession::STATE_MAPPED ? 'hardware.import.review' : ($importSession->state === \App\Models\AssetImportSession::STATE_TARGET_SELECTED ? 'hardware.import.mapping' : 'hardware.import.target'), $importSession->public_id) }}">
+                                    <a class="btn btn-sm btn-default" href="{{ route(match ($importSession->state) {
+                                        \App\Models\AssetImportSession::STATE_VALIDATED, \App\Models\AssetImportSession::STATE_VALIDATION_FAILED => 'hardware.import.results',
+                                        \App\Models\AssetImportSession::STATE_MAPPED => 'hardware.import.review',
+                                        \App\Models\AssetImportSession::STATE_TARGET_SELECTED => 'hardware.import.mapping',
+                                        default => 'hardware.import.target',
+                                    }, $importSession->public_id) }}">
                                         {{ trans('admin/hardware/import.sessions.continue') }}
                                     </a>
                                 </td>

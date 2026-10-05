@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Gate;
  * used both to render the mapping page and to validate what is submitted.
  *
  * Standard destinations are a fixed allowlist of asset fields (no ids,
- * audit columns, checkout data, images, departments or notes). Which of
+ * audit columns, checkout data, images or departments; Notes was added in
+ * Phase 6B as the approved brief requires). Which of
  * them are available depends on the session's sources: Model and Model
  * Number only in Model-from-CSV mode, and Status/Company/Location only
  * when that source is "from CSV" (a fixed source is never also mapped).
@@ -44,6 +45,7 @@ final class AssetImportFieldCatalog
         'byod' => 'general.byod',
         'asset_eol_date' => 'admin/hardware/form.eol_date',
         'next_audit_date' => 'general.next_audit_date',
+        'notes' => 'general.notes',
     ];
 
     /** Standard fields that depend on a source being "from CSV". */

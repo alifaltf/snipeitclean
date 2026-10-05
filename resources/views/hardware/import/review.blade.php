@@ -1,7 +1,7 @@
 @extends('layouts/default')
 
-{{-- ERS Phase 6A: secure asset CSV import - configuration review only.
-     No row data, no validation counts and no import action yet. --}}
+{{-- ERS Phase 6A/6B: secure asset CSV import - configuration review, then
+     validate every row (Phase 6B). No import action yet (Phase 6C). --}}
 @section('title')
     {{ trans('admin/hardware/import.review.title') }}
     @parent
@@ -107,8 +107,15 @@
             </x-slot:customfooter>
         </x-box>
 
-        <div class="callout callout-info" role="status" id="asset-import-next-phase">
-            {{ trans('admin/hardware/import.review.next_phase') }}
-        </div>
+        <x-box :header="trans('admin/hardware/import.steps.validate')">
+            <p id="asset-import-validate-help">{{ trans('admin/hardware/import.review.validate_help') }}</p>
+            <form method="post" action="{{ route('hardware.import.validate', $importSession->public_id) }}" class="text-right" id="asset-import-validate">
+                @csrf
+                @if (in_array($importSession->state, \App\Models\AssetImportSession::VALIDATION_STATES, true))
+                    <a class="btn btn-link pull-left" href="{{ route('hardware.import.results', $importSession->public_id) }}">{{ trans('admin/hardware/import.review.view_results') }}</a>
+                @endif
+                <button type="submit" class="btn btn-primary">{{ trans('admin/hardware/import.review.validate') }}</button>
+            </form>
+        </x-box>
     </x-container>
 @stop

@@ -44,6 +44,8 @@ final class SaveAssetImportMapping
             $session->mapping = $result->mapping;
             $session->mapping_file_sha256 = $session->file_sha256;
             $session->state = AssetImportSession::STATE_MAPPED;
+            // A new mapping always needs a new validation (Phase 6B).
+            $session->validated_at = null;
             $session->save();
 
             return $session;
