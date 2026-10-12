@@ -150,8 +150,26 @@ trait BuildsAssetImportFixture
     /** A custom field in a new fieldset assigned to $model. */
     protected function customFieldOn(AssetModel $model, array $attributes = [], bool $required = false): CustomField
     {
+        // A field that is both encrypted and unique can no longer be
+        // configured (ERS rule D); it is created here the way such a field
+        // exists from before that rule: saved, then flagged unique directly.
+        $legacyEncryptedUnique = ! empty($attributes['field_encrypted']) && ! empty($attributes['is_unique']);
+        // On MySQL/MariaDB a unique field gets a database key, a schema
+        // change that is refused inside this test's transaction; these
+        // tests check the import's own validation, so the flag is set
+        // directly there (the keys are tested in tests/Concurrency).
+        if (! $legacyEncryptedUnique && ! empty($attributes['is_unique']) && DB::connection()->getDriverName() !== 'sqlite' && DB::transactionLevel() > 0) {
+            $legacyEncryptedUnique = true;
+        }
+        if ($legacyEncryptedUnique) {
+            $attributes['is_unique'] = 0;
+        }
         $field = CustomField::factory()->create(array_merge(['name' => $this->randomName('Field'), 'format' => ''], $attributes));
         $this->assertNotNull($field->id, 'The custom field fixture was not saved: '.json_encode($field->getErrors()?->toArray()));
+        if ($legacyEncryptedUnique) {
+            DB::table('custom_fields')->where('id', $field->id)->update(['is_unique' => 1]);
+            $field->refresh();
+        }
         $model->refresh();
         $fieldset = $model->fieldset_id ? CustomFieldset::query()->find($model->fieldset_id) : CustomFieldset::factory()->create();
         $fieldset->fields()->attach($field, ['order' => 1, 'required' => $required]);

@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use App\Http\Traits\UniqueUndeletedTrait;
+use App\Services\AssetUniqueness\AssetUniquenessSchema;
+use App\Services\AssetUniqueness\AssetUniquenessTransitions;
 use EasySlugger\Utf8Slugger;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Watson\Validating\ValidatingTrait;
@@ -251,6 +254,21 @@ class CustomField extends Model
     {
         $rules = $this->rules;
 
+        // ERS: a field may not newly become both encrypted and unique
+        // (encrypted values use a random IV, so uniqueness could never be
+        // checked or enforced). Fields that already are both keep saving.
+        $uniqueNow = (int) $this->is_unique === 1;
+        $encryptedNow = (int) $this->field_encrypted === 1;
+        $wasBoth = $this->exists && (int) $this->getOriginal('is_unique') === 1 && (int) $this->getOriginal('field_encrypted') === 1;
+        if ($uniqueNow && $encryptedNow && ! $wasBoth) {
+            $existing = $rules['is_unique'] ?? [];
+            $existing = is_string($existing) ? explode('|', $existing) : (array) $existing;
+            $existing[] = function ($attribute, $value, $fail) {
+                $fail(trans('admin/hardware/uniqueness.encrypted_unique'));
+            };
+            $rules['is_unique'] = $existing;
+        }
+
         // Uses the accessor, which reverse-maps stored patterns like
         // 'date' back to the label 'DATE' so the matrix keys line up.
         $format = $this->format;
@@ -313,6 +331,110 @@ class CustomField extends Model
      *
      * @return bool
      */
+    /**
+     * ERS: every save of a custom field (create, update, the nested saves
+     * Snipe-IT does while creating or renaming one, and the encryption
+     * command) runs under the asset-uniqueness schema lock, held from
+     * re-reading the persisted field through key activation, the metadata
+     * write, key removal and compensation. The lock is a MySQL named lock,
+     * not a transaction: schema changes still commit on their own.
+     *
+     * Under the lock the model is first brought up to date with the
+     * persisted row (mergePersistedConfiguration()), so every decision
+     * (validation, "encrypted and unique", which key is needed, the column
+     * to rename) uses current values. If the save then fails, the field's
+     * key is reconciled with whatever metadata is actually persisted: a key
+     * the persisted field needs is never removed.
+     */
+    public function save(array $options = [])
+    {
+        $transitions = app(AssetUniquenessTransitions::class);
+
+        return app(AssetUniquenessSchema::class)->withLock(function () use ($options, $transitions) {
+            if ($this->exists && ! $this->mergePersistedConfiguration()) {
+                return false;
+            }
+            try {
+                $saved = parent::save($options);
+            } catch (\Throwable $exception) {
+                if ($this->getKey() !== null) {
+                    $transitions->reconcileFieldKey((int) $this->getKey());
+                }
+
+                throw $exception;
+            }
+            if (! $saved && $this->getKey() !== null) {
+                $transitions->reconcileFieldKey((int) $this->getKey());
+            }
+
+            return $saved;
+        });
+    }
+
+    /**
+     * ERS: deleting a field runs under the same lock, with the persisted
+     * column name (a rename by another request is not missed).
+     */
+    public function delete()
+    {
+        return app(AssetUniquenessSchema::class)->withLock(function () {
+            if ($this->exists) {
+                $row = DB::table($this->getTable())->where($this->getKeyName(), $this->getKey())->first();
+                if ($row === null) {
+                    return false;
+                }
+                foreach ((array) $row as $column => $value) {
+                    $this->attributes[$column] = $value;
+                    $this->original[$column] = $value;
+                }
+            }
+
+            return parent::delete();
+        });
+    }
+
+    /**
+     * ERS: bring this model up to date with the persisted row before a
+     * save. Attributes the request did not change take the persisted
+     * values. An attribute the request changed is kept, unless another
+     * request has meanwhile persisted a different value for that same
+     * attribute: then the save is refused as stale (nothing is written).
+     */
+    private function mergePersistedConfiguration(): bool
+    {
+        $row = DB::table($this->getTable())->where($this->getKeyName(), $this->getKey())->first();
+        if ($row === null) {
+            $this->addErsError('name', trans('admin/hardware/uniqueness.field_stale'));
+
+            return false;
+        }
+        $same = fn ($a, $b) => $a === null || $b === null ? $a === $b : (string) $a === (string) $b;
+        foreach ((array) $row as $column => $persisted) {
+            if (! $this->isDirty($column)) {
+                $this->attributes[$column] = $persisted;
+                $this->original[$column] = $persisted;
+
+                continue;
+            }
+            $loaded = $this->original[$column] ?? null;
+            if (! $same($loaded, $persisted) && ! $same($this->attributes[$column] ?? null, $persisted)) {
+                $this->addErsError($column, trans('admin/hardware/uniqueness.field_stale'));
+
+                return false;
+            }
+            $this->original[$column] = $persisted;
+        }
+
+        return true;
+    }
+
+    private function addErsError(string $key, string $message): void
+    {
+        $errors = $this->getErrors();
+        $errors->add($key, $message);
+        $this->setErrors($errors);
+    }
+
     public static function boot()
     {
         parent::boot();
@@ -355,6 +477,53 @@ class CustomField extends Model
                 $custom_field->syncOriginal();
                 $custom_field->db_column = $custom_field->convertUnicodeDbSlug();
                 $custom_field->save();
+
+                // ERS: a unique, non-encrypted field gets its database key
+                // now; if that fails the new field is removed again and the
+                // creation fails (never reported with the rule unenforced).
+                app(AssetUniquenessTransitions::class)->afterFieldCreated($custom_field);
+            }
+        );
+
+        // ERS: switching "unique" on creates the database key BEFORE the
+        // change is saved (refused, with the field's error, when existing
+        // values clash or the key cannot be created); switching it off (or
+        // the field away from a key) removes the key AFTER the save.
+        // Registered before the rename handler below, so the key exists
+        // before any nested save.
+        self::updating(
+            function ($custom_field) {
+                $transitions = app(AssetUniquenessTransitions::class);
+
+                // The format lock below refuses this save: create nothing.
+                if ($custom_field->isDirty('format')) {
+                    $original = $custom_field->getOriginal('format');
+                    $originalFriendly = collect(self::PREDEFINED_FORMATS)->search(fn ($pattern) => $pattern === $original) ?: $original;
+                    if (in_array($originalFriendly, ['DATE', 'DATETIME'], true) || in_array($custom_field->format, ['DATE', 'DATETIME'], true)) {
+                        return null;
+                    }
+                }
+
+                $error = $transitions->beforeFieldUpdate($custom_field);
+                if ($error !== null) {
+                    $custom_field->addErsError('is_unique', $error);
+
+                    return false;
+                }
+
+                // null, not true: Eloquent stops calling the remaining
+                // "updating" listeners at the first non-null answer.
+                return null;
+            }
+        );
+
+        self::updated(
+            function ($custom_field) {
+                // Remove a key the persisted field no longer needs, keep the
+                // ledger in step with a rename. A key that could not be
+                // removed is logged; the database then keeps the stricter
+                // rule until the repair command runs.
+                app(AssetUniquenessTransitions::class)->reconcileFieldKey((int) $custom_field->id);
             }
         );
 
@@ -428,6 +597,14 @@ class CustomField extends Model
                 }
                 if (! Schema::hasColumn(self::$table_name, $custom_field->db_column)) {
                     return true;
+                }
+
+                // ERS: on MySQL/MariaDB the column and its uniqueness key
+                // are dropped in one statement (a column a generated key
+                // uses cannot be dropped on its own).
+                $schema = app(AssetUniquenessSchema::class);
+                if ($schema->isReady()) {
+                    return $schema->dropCustomFieldColumn((int) $custom_field->id, (string) $custom_field->db_column);
                 }
 
                 return Schema::table(

@@ -13,11 +13,13 @@ use Illuminate\Support\Facades\DB;
 /**
  * ERS Phase 6B: validate every row of a session and record the outcome.
  *
- * Writes only the session's state and validated_at: validated (with
- * validated_at) when every row passed, validation_failed (validated_at
- * cleared) otherwise. No asset or master record is written. Can be run
- * again at any time. Phase 6C must not rely on this state alone: it has to
- * validate again inside the transaction that writes the assets.
+ * Writes only the session's state, validated_at and validation_nonce:
+ * validated (with validated_at and a fresh nonce) when every row passed,
+ * validation_failed (both cleared) otherwise; it also clears the diagnostics of a rolled-back
+ * execution (Phase 6C), which is how a failed import is retried. No asset
+ * or master record is written. Can be run again at any time. Execution
+ * never relies on this state alone: ExecuteAssetImport validates again
+ * inside the transaction that writes the assets.
  */
 final class ValidateAssetImportSession
 {
@@ -48,6 +50,12 @@ final class ValidateAssetImportSession
                 ? AssetImportSession::STATE_VALIDATED
                 : AssetImportSession::STATE_VALIDATION_FAILED;
             $session->validated_at = $result->isEligible() ? $result->validatedAt : null;
+            // A new version for every successful validation, even one in the
+            // same second with the same file, target and mapping.
+            $session->validation_nonce = $result->isEligible() ? AssetImportSession::newValidationNonce() : null;
+            // A new validation supersedes a rolled-back execution's diagnostics.
+            $session->execution_errors = null;
+            $session->execution_failed_at = null;
             $session->save();
 
             return [$session, null, $result];

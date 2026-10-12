@@ -32,9 +32,12 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetCategorySelection;
 use App\Services\AssetCategoryWriteAuthorizer;
+use App\Services\AssetUniqueness\AssetRestorer;
+use App\Services\AssetUniqueness\UniqueConstraintViolation;
 use App\View\Label;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -43,6 +46,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\MessageBag;
 use Illuminate\Support\Str;
 
 /**
@@ -1096,50 +1100,62 @@ class AssetsController extends Controller
             ];
         }
 
-        $updated = DB::transaction(function () use ($asset, $request, $target, $requestedCheckout): bool {
-            if (! $asset->save()) {
-                return false;
-            }
-
-            if ($requestedCheckout) {
-                // Concurrency guard, same shape as Api\AssetsController::checkout.
-                // availableForCheckout() at line 1067 ran outside the transaction;
-                // without a row lock, two racing PATCH requests that both include
-                // assigned_user / assigned_asset / assigned_location could each
-                // pass that check and both proceed through checkOut(), producing
-                // duplicate checkout-history rows and a doubled checkout_counter.
-                // Re-fetch the row under lockForUpdate and re-check availability
-                // against the locked snapshot before invoking checkOut.
-                $locked = Asset::whereKey($asset->id)->lockForUpdate()->first();
-                if (! $locked || ! $locked->availableForCheckout()) {
+        // ERS: a duplicate refused by an ERS uniqueness key (a concurrent
+        // writer took the value) fails this asset like a validation error;
+        // the transaction has already been rolled back.
+        try {
+            $updated = DB::transaction(function () use ($asset, $request, $target, $requestedCheckout): bool {
+                if (! $asset->save()) {
                     return false;
                 }
 
-                // Preserve the asset name if the name wasn't in the payload.
-                $asset_name = $request->has('name') ? $request->input('name') : $asset->name;
+                if ($requestedCheckout) {
+                    // Concurrency guard, same shape as Api\AssetsController::checkout.
+                    // availableForCheckout() at line 1067 ran outside the transaction;
+                    // without a row lock, two racing PATCH requests that both include
+                    // assigned_user / assigned_asset / assigned_location could each
+                    // pass that check and both proceed through checkOut(), producing
+                    // duplicate checkout-history rows and a doubled checkout_counter.
+                    // Re-fetch the row under lockForUpdate and re-check availability
+                    // against the locked snapshot before invoking checkOut.
+                    $locked = Asset::whereKey($asset->id)->lockForUpdate()->first();
+                    if (! $locked || ! $locked->availableForCheckout()) {
+                        return false;
+                    }
 
-                $location = null;
-                if ($request->filled('assigned_user')) {
-                    $location = $target->location_id;
-                } elseif ($request->filled('assigned_asset')) {
-                    $location = $target->location_id;
-                } elseif ($request->filled('assigned_location')) {
-                    $location = $target->id;
+                    // Preserve the asset name if the name wasn't in the payload.
+                    $asset_name = $request->has('name') ? $request->input('name') : $asset->name;
+
+                    $location = null;
+                    if ($request->filled('assigned_user')) {
+                        $location = $target->location_id;
+                    } elseif ($request->filled('assigned_asset')) {
+                        $location = $target->location_id;
+                    } elseif ($request->filled('assigned_location')) {
+                        $location = $target->id;
+                    }
+
+                    if (! $asset->checkOut($target, auth()->user(), date('Y-m-d H:i:s'), '', 'Checked out on asset update', $asset_name, $location)) {
+                        return false;
+                    }
+
+                    if ($request->filled('assigned_asset')) {
+                        Asset::where('assigned_type', Asset::class)
+                            ->where('assigned_to', $asset->id)
+                            ->update(['location_id' => $target->location_id]);
+                    }
                 }
 
-                if (! $asset->checkOut($target, auth()->user(), date('Y-m-d H:i:s'), '', 'Checked out on asset update', $asset_name, $location)) {
-                    return false;
-                }
-
-                if ($request->filled('assigned_asset')) {
-                    Asset::where('assigned_type', Asset::class)
-                        ->where('assigned_to', $asset->id)
-                        ->update(['location_id' => $target->location_id]);
-                }
+                return true;
+            });
+        } catch (QueryException $exception) {
+            $violation = UniqueConstraintViolation::detect($exception);
+            if ($violation === null) {
+                throw $exception;
             }
-
-            return true;
-        });
+            $asset->setErrors(new MessageBag([$violation->attribute() => [$violation->message()]]));
+            $updated = false;
+        }
 
         if (! $updated) {
             return [
@@ -1260,12 +1276,14 @@ class AssetsController extends Controller
                 return response()->json(Helper::formatStandardApiResponse('error', trans('general.not_deleted', ['item_type' => trans('general.asset')])), 200);
             }
 
-            if ($asset->restore()) {
+            // ERS: refused with the field's error when a unique value is
+            // used by a live asset (see AssetRestorer).
+            $errors = app(AssetRestorer::class)->restore($asset);
+            if ($errors === null) {
                 return response()->json(Helper::formatStandardApiResponse('success', trans('admin/hardware/message.restore.success')), 200);
             }
 
-            // Check validation to make sure we're not restoring an asset with the same asset tag (or unique attribute) as an existing asset
-            return response()->json(Helper::formatStandardApiResponse('error', trans('general.could_not_restore', ['item_type' => trans('general.asset'), 'error' => $asset->getErrors()->first()])), 200);
+            return response()->json(Helper::formatStandardApiResponse('error', trans('general.could_not_restore', ['item_type' => trans('general.asset'), 'error' => reset($errors)]), array_map(fn ($message) => [$message], $errors)), 200);
         }
 
         return response()->json(Helper::formatStandardApiResponse('error', null, trans('admin/hardware/message.does_not_exist')), 200);

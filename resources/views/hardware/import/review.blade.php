@@ -1,7 +1,8 @@
 @extends('layouts/default')
 
 {{-- ERS Phase 6A/6B: secure asset CSV import - configuration review, then
-     validate every row (Phase 6B). No import action yet (Phase 6C). --}}
+     validate every row (Phase 6B). Importing is confirmed on the results
+     page (Phase 6C). --}}
 @section('title')
     {{ trans('admin/hardware/import.review.title') }}
     @parent

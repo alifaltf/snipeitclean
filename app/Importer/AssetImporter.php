@@ -6,7 +6,11 @@ use App\Events\CheckoutableCheckedIn;
 use App\Models\Asset;
 use App\Models\Statuslabel;
 use App\Models\User;
+use App\Services\AssetUniqueness\UniqueConstraintViolation;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\MessageBag;
 
 class AssetImporter extends ItemImporter
 {
@@ -296,35 +300,59 @@ class AssetImporter extends ItemImporter
             $checkout_date = $this->item['last_checkout'];
         }
 
-        if ($editingAsset) {
-            $asset->update($item);
-            $asset->setImported(true);
-        } else {
-            $asset->fill($item);
-            $asset->setImported(true);
-        }
+        // ERS: every save and update result is checked (failed updates used
+        // to be reported as successful), the row's writes run in a
+        // savepoint so a refused second update cannot leave it half
+        // updated, and a duplicate refused by an ERS uniqueness key is this
+        // row's error.
+        $success = false;
+        $refused = false;
+        try {
+            DB::transaction(function () use ($asset, $item, $editingAsset, &$success, &$refused) {
+                if ($editingAsset) {
+                    $success = $asset->update($item);
+                    $asset->setImported(true);
+                } else {
+                    $asset->fill($item);
+                    $asset->setImported(true);
+                }
 
-        // If we're updating, we don't want to overwrite old fields.
-        // Apply custom fields to asset attributes if they exist
-        $customFieldsToSave = [];
-        if (array_key_exists('custom_fields', $this->item)) {
-            foreach ($this->item['custom_fields'] as $custom_field => $val) {
-                $asset->{$custom_field} = $val;
-                $customFieldsToSave[$custom_field] = $val;
+                // If we're updating, we don't want to overwrite old fields.
+                // Apply custom fields to asset attributes if they exist
+                $customFieldsToSave = [];
+                if (array_key_exists('custom_fields', $this->item)) {
+                    foreach ($this->item['custom_fields'] as $custom_field => $val) {
+                        $asset->{$custom_field} = $val;
+                        $customFieldsToSave[$custom_field] = $val;
+                    }
+                }
+
+                // For existing assets that have custom fields, update them.
+                // This avoids the issue of calling save() twice with Model::unguard() active.
+                if ($editingAsset && ! empty($customFieldsToSave)) {
+                    $success = $success && $asset->update($customFieldsToSave);
+                } elseif (! $editingAsset) {
+                    // For new assets, save with all changes (custom fields included via direct attribute assignment above)
+                    $success = $asset->save();
+                }
+
+                if (! $success) {
+                    $refused = true;
+                    throw new \RuntimeException('The row was not saved.');
+                }
+            });
+        } catch (QueryException $exception) {
+            $violation = UniqueConstraintViolation::detect($exception);
+            if ($violation === null) {
+                throw $exception;
             }
-        }
-
-        // For existing assets that have custom fields, update them.
-        // This avoids the issue of calling save() twice with Model::unguard() active.
-        if ($editingAsset && ! empty($customFieldsToSave)) {
-            $asset->update($customFieldsToSave);
-            $success = true;
-        } elseif (! $editingAsset) {
-            // For new assets, save with all changes (custom fields included via direct attribute assignment above)
-            $success = $asset->save();
-        } else {
-            // For existing assets without custom fields, update() already saved everything
-            $success = true;
+            $asset->setErrors(new MessageBag([$violation->attribute() => [$violation->message()]]));
+            $success = false;
+        } catch (\RuntimeException $exception) {
+            if (! $refused) {
+                throw $exception;
+            }
+            $success = false;
         }
 
         if ($success) {

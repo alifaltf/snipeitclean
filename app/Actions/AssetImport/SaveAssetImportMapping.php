@@ -46,6 +46,9 @@ final class SaveAssetImportMapping
             $session->state = AssetImportSession::STATE_MAPPED;
             // A new mapping always needs a new validation (Phase 6B).
             $session->validated_at = null;
+            $session->validation_nonce = null;
+            $session->execution_errors = null;
+            $session->execution_failed_at = null;
             $session->save();
 
             return $session;

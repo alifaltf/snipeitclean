@@ -23,6 +23,7 @@ use App\Services\AssetCategoryAccess;
 use App\Services\AssetCategorySelection;
 use App\Services\AssetCategoryWriteAuthorizer;
 use App\Services\AssetImport\AssetImportAuthorizer;
+use App\Services\AssetUniqueness\AssetRestorer;
 use App\View\Label;
 use Carbon\Carbon;
 use Com\Tecnick\Barcode\Barcode;
@@ -846,7 +847,11 @@ class AssetsController extends Controller
                 return redirect()->back()->with('error', trans('general.not_deleted', ['item_type' => trans('general.asset')]));
             }
 
-            if ($asset->restore()) {
+            // ERS: refused, with the field's error, when a unique value
+            // (tag, serial if unique serials are on, unique custom field)
+            // is used by a live asset; nothing is renamed or retagged.
+            $errors = app(AssetRestorer::class)->restore($asset);
+            if ($errors === null) {
                 // Redirect them to the deleted page if there are more, otherwise the section index
                 $deleted_assets = Asset::onlyTrashed()->count();
                 if ($deleted_assets > 0) {
@@ -856,8 +861,9 @@ class AssetsController extends Controller
                 return redirect()->route('hardware.index')->with('success', trans('admin/hardware/message.restore.success'));
             }
 
-            // Check validation to make sure we're not restoring an asset with the same asset tag (or unique attribute) as an existing asset
-            return redirect()->back()->with('error', trans('general.could_not_restore', ['item_type' => trans('general.asset'), 'error' => $asset->getErrors()->first()]));
+            return redirect()->back()
+                ->withErrors($errors)
+                ->with('error', trans('general.could_not_restore', ['item_type' => trans('general.asset'), 'error' => reset($errors)]));
         }
 
         return redirect()->route('hardware.index')->with('error', trans('admin/hardware/message.does_not_exist'));

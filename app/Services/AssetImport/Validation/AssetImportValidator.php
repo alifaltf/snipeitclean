@@ -39,7 +39,8 @@ use RuntimeException;
  *    tags, serials and unique custom fields in bounded bulk queries, so the
  *    number of queries does not grow with the number of rows;
  *  - checks each row strictly: required asset tag, no duplicates in the file
- *    or among live or deleted assets (case-insensitive), ISO dates, plain
+ *    or among live or deleted assets (compared like the database column
+ *    compares them, see AssetImportUniqueKeys), ISO dates, plain
  *    decimal and integer numbers, a fixed boolean vocabulary (a blank
  *    optional boolean is left out so the asset's default applies), exact
  *    name matches that are neither missing nor ambiguous, Full Multiple
@@ -69,9 +70,6 @@ final class AssetImportValidator
     /** Longest Notes text shown in one preview cell; the full value is still validated and kept. */
     private const NOTES_PREVIEW_LENGTH = 500;
 
-    /** Chunk size for the bulk "already exists" queries. */
-    private const LOOKUP_CHUNK = 500;
-
     /** Standard destination => Asset attribute it fills (simple values only). */
     private const ASSET_ATTRIBUTES = [
         'asset_tag' => 'asset_tag',
@@ -92,22 +90,23 @@ final class AssetImportValidator
 
     private const BOOLEAN_FIELDS = ['requestable', 'byod'];
 
-    public function __construct(private readonly AssetImportFieldCatalog $catalog) {}
+    public function __construct(
+        private readonly AssetImportFieldCatalog $catalog,
+        private readonly AssetImportUniqueKeys $uniqueKeys,
+    ) {}
 
     public function validate(AssetImportSession $session, User $user): AssetImportValidationResult
     {
         $context = $this->context($session, $user);
         $records = $this->readRows($session, $context['columns']);
 
-        $tags = $this->duplicates($records, 'standard:asset_tag');
-        $serials = $this->duplicates($records, 'standard:serial');
-        $existingTags = $this->existingValues('asset_tag', array_keys($tags), true);
-        $existingSerials = $this->existingValues('serial', array_keys($serials), true);
+        $tags = $this->uniqueState($records, 'standard:asset_tag', 'asset_tag', true);
+        $serials = $this->uniqueState($records, 'standard:serial', 'serial', true);
         $uniqueFields = $this->uniqueCustomFieldState($context, $records);
 
         $rows = [];
         foreach ($records as [$rowNumber, $values]) {
-            $rows[] = $this->validateRow($context, $rowNumber, $values, $tags, $existingTags, $serials, $existingSerials, $uniqueFields);
+            $rows[] = $this->validateRow($context, $rowNumber, $values, $tags, $serials, $uniqueFields);
         }
 
         return new AssetImportValidationResult($rows, CarbonImmutable::now());
@@ -290,60 +289,39 @@ final class AssetImportValidator
     }
 
     /**
-     * How unique values (asset tags, serials, unique custom fields) are
-     * compared: trimmed and lower-cased, exactly like LOWER() on the stored
-     * value, so case-only variations never pass as different.
-     */
-    public static function uniqueKey(string $value): string
-    {
-        return mb_strtolower(trim($value), 'UTF-8');
-    }
-
-    /**
-     * Rows per unique key of the non-empty values of one destination.
+     * How unique values (asset tags, serials, unique custom fields) of one
+     * destination compare, in bulk: the comparison key of every non-empty
+     * value (the column's own collation on MySQL/MariaDB, see
+     * AssetImportUniqueKeys), the rows per key in the file, and the keys
+     * already used in assets.$column (deleted assets too when
+     * $includeDeleted). Callers report only "already used", never which
+     * asset.
      *
-     * @return array<string, list<int>>
+     * @return array{keys: array<string, string>, rows: array<string, list<int>>, existing: array<string, true>}
      */
-    private function duplicates(array $records, string $key): array
+    private function uniqueState(array $records, string $destination, string $column, bool $includeDeleted): array
     {
-        $seen = [];
-        foreach ($records as [$row, $values]) {
-            $value = $values[$key] ?? '';
+        $values = [];
+        foreach ($records as [, $cells]) {
+            if (($cells[$destination] ?? '') !== '') {
+                $values[] = $cells[$destination];
+            }
+        }
+
+        $keys = $this->uniqueKeys->keys($column, $values);
+        $rows = [];
+        foreach ($records as [$row, $cells]) {
+            $value = $cells[$destination] ?? '';
             if ($value !== '') {
-                $seen[self::uniqueKey($value)][] = $row;
+                $rows[$keys[$value]][] = $row;
             }
         }
 
-        return $seen;
-    }
-
-    /**
-     * Which of $values already exist in assets.$column, case-insensitively,
-     * in chunks of LOOKUP_CHUNK. Deleted assets count too unless
-     * $includeDeleted is false. Unscoped on purpose (uniqueness is global);
-     * callers report only "already used", never which asset.
-     *
-     * @param  list<string>  $values  unique keys
-     * @return array<string, true>
-     */
-    private function existingValues(string $column, array $values, bool $includeDeleted): array
-    {
-        if (preg_match('/\A[A-Za-z0-9_]+\z/', $column) !== 1) {
-            throw new RuntimeException('Unexpected column name.');
-        }
-
-        $found = [];
-        foreach (array_chunk($values, self::LOOKUP_CHUNK) as $chunk) {
-            $query = DB::table('assets')->whereIn(DB::raw('LOWER('.$column.')'), $chunk);
-            if (! $includeDeleted) {
-                $query->whereNull('deleted_at');
-            }
-            foreach ($query->pluck($column) as $existing) {
-                $found[self::uniqueKey((string) $existing)] = true;
-            }
-        }
-
-        return $found;
+        return [
+            'keys' => $keys,
+            'rows' => $rows,
+            'existing' => $this->uniqueKeys->existing($column, array_keys($keys), $includeDeleted),
+        ];
     }
 
     /**
@@ -353,7 +331,7 @@ final class AssetImportValidator
      * out on purpose: their non-empty values are refused per row (see
      * validateCustomFields()), so no stored secret is ever decrypted here.
      *
-     * @return array<int, array{rows: array<string, list<int>>, existing: array<string, true>}>
+     * @return array<int, array{keys: array<string, string>, rows: array<string, list<int>>, existing: array<string, true>}>
      */
     private function uniqueCustomFieldState(array $context, array $records): array
     {
@@ -362,11 +340,7 @@ final class AssetImportValidator
             if ((string) $field->is_unique !== '1' || (string) $field->field_encrypted === '1') {
                 continue;
             }
-            $rows = $this->duplicates($records, $key);
-            $state[$id] = [
-                'rows' => $rows,
-                'existing' => $this->existingValues($field->db_column_name(), array_keys($rows), false),
-            ];
+            $state[$id] = $this->uniqueState($records, $key, $field->db_column_name(), false);
         }
 
         return $state;
@@ -376,7 +350,7 @@ final class AssetImportValidator
     // One row
     // ------------------------------------------------------------------
 
-    private function validateRow(array $c, int $row, array $values, array $tags, array $existingTags, array $serials, array $existingSerials, array $uniqueFields): AssetImportValidatedRow
+    private function validateRow(array $c, int $row, array $values, array $tags, array $serials, array $uniqueFields): AssetImportValidatedRow
     {
         $fullTag = $values['standard:asset_tag'] ?? '';
         // The tag shown next to errors is cut to a safe display length.
@@ -393,11 +367,11 @@ final class AssetImportValidator
         if ($tag === null) {
             $fail('standard:asset_tag', 'required');
         } else {
-            $normalised = self::uniqueKey($fullTag);
-            if (count($tags[$normalised]) > 1) {
-                $fail('standard:asset_tag', 'duplicate_in_file', ['rows' => implode(', ', $tags[$normalised])]);
+            $normalised = $tags['keys'][$fullTag];
+            if (count($tags['rows'][$normalised]) > 1) {
+                $fail('standard:asset_tag', 'duplicate_in_file', ['rows' => implode(', ', $tags['rows'][$normalised])]);
             }
-            if (isset($existingTags[$normalised])) {
+            if (isset($tags['existing'][$normalised])) {
                 $fail('standard:asset_tag', 'asset_tag_exists');
             }
             $attributes['asset_tag'] = $fullTag;
@@ -406,11 +380,11 @@ final class AssetImportValidator
         // Serial: optional; when present unique in the file and among all assets.
         $serial = $value('serial');
         if ($serial !== null && $serial !== '') {
-            $normalised = self::uniqueKey($serial);
-            if (count($serials[$normalised]) > 1) {
-                $fail('standard:serial', 'duplicate_in_file', ['rows' => implode(', ', $serials[$normalised])]);
+            $normalised = $serials['keys'][$serial];
+            if (count($serials['rows'][$normalised]) > 1) {
+                $fail('standard:serial', 'duplicate_in_file', ['rows' => implode(', ', $serials['rows'][$normalised])]);
             }
-            if (isset($existingSerials[$normalised])) {
+            if (isset($serials['existing'][$normalised])) {
                 $fail('standard:serial', 'serial_exists');
             }
             $attributes['serial'] = $serial;
@@ -698,7 +672,7 @@ final class AssetImportValidator
             }
 
             if (isset($uniqueFields[$id])) {
-                $normalised = self::uniqueKey($raw);
+                $normalised = $uniqueFields[$id]['keys'][$raw];
                 if (count($uniqueFields[$id]['rows'][$normalised] ?? []) > 1) {
                     $fail($key, 'duplicate_in_file', ['rows' => implode(', ', $uniqueFields[$id]['rows'][$normalised])]);
                 }

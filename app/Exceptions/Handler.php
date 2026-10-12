@@ -3,6 +3,9 @@
 namespace App\Exceptions;
 
 use App\Helpers\Helper;
+use App\Services\AssetUniqueness\AssetUniquenessException;
+use App\Services\AssetUniqueness\ConcurrentWriteConflict;
+use App\Services\AssetUniqueness\UniqueConstraintViolation;
 use ArieTimmerman\Laravel\SCIMServer\Exceptions\SCIMException;
 use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -58,6 +61,22 @@ class Handler extends ExceptionHandler
      */
     public function report(Throwable $exception)
     {
+        // ERS: a duplicate refused by an ERS uniqueness key is an expected
+        // outcome, not a fault. Its message contains the duplicate value and
+        // the SQL, so only the key name is logged.
+        if (($violation = UniqueConstraintViolation::detect($exception)) !== null) {
+            Log::info('ERS asset uniqueness: a database key refused a duplicate value.', ['constraint' => $violation->index]);
+
+            return;
+        }
+        // ERS: a write stopped by a concurrent transaction (deadlock / lock
+        // wait). Logged without the message, which holds SQL and values.
+        if (($code = ConcurrentWriteConflict::detect($exception)) !== null) {
+            Log::warning('ERS: a write was stopped by a concurrent database transaction and rolled back.', ['code' => $code]);
+
+            return;
+        }
+
         if ($this->shouldReport($exception)) {
             if (class_exists(Log::class)) {
                 Log::error($exception);
@@ -76,6 +95,24 @@ class Handler extends ExceptionHandler
      */
     public function render($request, Throwable $e)
     {
+        // ERS: show a duplicate refused by an ERS uniqueness key, or a
+        // uniqueness rule that could not be switched, as the field's
+        // validation error (web: back with the error; API: the standard
+        // error payload). Other database errors are not affected.
+        if (($violation = UniqueConstraintViolation::detect($e)) !== null) {
+            $e = $violation->toValidationException();
+        } elseif ($e instanceof AssetUniquenessException) {
+            $e = ValidationException::withMessages([$e->field ?? 'is_unique' => [$e->getMessage()]]);
+        } elseif (ConcurrentWriteConflict::detect($e) !== null) {
+            // Not a uniqueness error: the database stopped this request
+            // because of another one (its open transaction was rolled back).
+            $message = trans('admin/hardware/uniqueness.busy');
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(Helper::formatStandardApiResponse('error', null, $message), 200);
+            }
+
+            return redirect()->back()->withInput()->with('error', $message);
+        }
 
         // Livewire tried to set a property that doesn't exist (e.g. stale browser state sending a bare "0" as a property name)
         if ($e instanceof PublicPropertyNotFoundException) {

@@ -71,6 +71,12 @@ Route::group(
                         ->push(trans('admin/hardware/import.steps.preview'))
                     );
                 Route::get('{session}/errors', [AssetImportController::class, 'errorReport'])->name('errors');
+
+                // ERS Phase 6C: confirmed, all-or-nothing execution (POST,
+                // CSRF-protected by the web group) and the report of a
+                // rolled-back execution.
+                Route::post('{session}/execute', [AssetImportController::class, 'execute'])->name('execute');
+                Route::get('{session}/execution-errors', [AssetImportController::class, 'executionErrorReport'])->name('execution_errors');
             });
 
         Route::get('bulkaudit', [AssetsController::class, 'quickScan'])

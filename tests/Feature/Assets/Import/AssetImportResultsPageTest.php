@@ -61,7 +61,11 @@ class AssetImportResultsPageTest extends TestCase
         $this->assertStringContainsString(e($this->modelIn('leaf1')->name), $html, 'Fixed model is shown.');
         $this->assertStringContainsString(e($this->status->name), $html, 'Fixed status is shown.');
         $this->assertStringContainsString(e(trans('admin/hardware/import.results.no_assets_created')), $html);
-        $this->assertMatchesRegularExpression('/<button[^>]*disabled[^>]*id="asset-import-confirm-disabled"/', $html);
+        // Phase 6C: a validated session offers the confirmation form, bound
+        // to this validation.
+        $this->assertStringContainsString('id="asset-import-execute"', $html);
+        $this->assertStringContainsString('action="'.route('hardware.import.execute', $session->public_id).'"', $html);
+        $this->assertStringContainsString('value="'.\App\Actions\AssetImport\ExecuteAssetImport::confirmationToken($session->fresh()).'"', $html);
         $this->assertStringNotContainsString('id="asset-import-download-errors"', $html);
         $this->assertStringContainsString(route('hardware.import.target', $session->public_id), $html);
         $this->assertStringContainsString(route('hardware.import.mapping', $session->public_id), $html);
@@ -82,6 +86,7 @@ class AssetImportResultsPageTest extends TestCase
         $this->assertMatchesRegularExpression('/<tr class="danger" data-row="3">/', $html);
         $this->assertStringContainsString(e(trans('admin/hardware/import.validation.decimal')), $html);
         $this->assertStringContainsString('id="asset-import-download-errors"', $html);
+        $this->assertStringNotContainsString('id="asset-import-execute"', $html, 'An invalid session cannot proceed.');
         $this->assertSame(AssetImportSession::STATE_VALIDATION_FAILED, $session->state);
         $this->assertNull($session->validated_at);
 

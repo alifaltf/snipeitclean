@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Asset;
 use App\Models\CustomField;
+use App\Services\AssetUniqueness\AssetUniquenessSchema;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -43,7 +44,25 @@ class ToggleCustomfieldEncryption extends Command
     {
         $fieldname = $this->argument('fieldname');
 
-        if ($field = CustomField::where('db_column', $fieldname)->first()) {
+        // ERS: the whole change runs under the asset-uniqueness schema lock
+        // (a MySQL named lock, not a transaction), so no other request can
+        // make the field unique, rename it or delete it in between; the
+        // field is read under that lock.
+        return app(AssetUniquenessSchema::class)->withLock(function () use ($fieldname) {
+            $field = CustomField::where('db_column', $fieldname)->first();
+            if (! $field) {
+                $this->error('No matching results for unencrypted custom fields with db_column name: '.$fieldname.'. Please check the fieldname.');
+
+                return 0; // as before: reported, exit code unchanged
+            }
+
+            // ERS: a unique field cannot become encrypted (uniqueness of
+            // encrypted values cannot be checked). Nothing is changed.
+            if ((int) $field->is_unique === 1 && (int) $field->field_encrypted !== 1) {
+                $this->error(trans('admin/hardware/uniqueness.encryption_refused_unique'));
+
+                return 1;
+            }
 
             // If the field is not encrypted, make it encrypted and encrypt the data in the assets table for the
             // corresponding field.
@@ -58,7 +77,10 @@ class ToggleCustomfieldEncryption extends Command
                     }
 
                     $field->field_encrypted = 1;
-                    $field->save();
+                    // ERS: a refused save must roll the encrypted values back.
+                    if (! $field->save()) {
+                        throw new \RuntimeException('The custom field could not be saved; no value was encrypted.');
+                    }
 
                     // This field is already encrypted. Do nothing.
                 } else {
@@ -66,10 +88,7 @@ class ToggleCustomfieldEncryption extends Command
                 }
             });
 
-            // No matching column name found
-        } else {
-            $this->error('No matching results for unencrypted custom fields with db_column name: '.$fieldname.'. Please check the fieldname.');
-        }
-
+            return 0;
+        });
     }
 }

@@ -310,8 +310,9 @@ class AssetImportRowRulesTest extends TestCase
 
         $small = $this->configuredSession($user, "Asset Tag,Serial Number,Model,Status\nT-1,S-1,{$model->name},{$this->status->name}\n", ['model_source' => 'column', 'status_source' => 'column'], [0 => 'standard:asset_tag', 1 => 'standard:serial', 2 => 'standard:model', 3 => 'standard:status']);
         [, $one] = $count($small);
-        // Only the chunked tag/serial lookups grow (500 values per query).
-        $this->assertLessThanOrEqual($one + 2 * 10, $large);
+        // Only the chunked tag/serial queries grow, one per 500 values: the
+        // existing-value lookups and, on MySQL/MariaDB, the collation keys.
+        $this->assertLessThanOrEqual($one + 4 * 10, $large);
     }
 
     #[Test]

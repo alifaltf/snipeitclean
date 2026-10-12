@@ -1,6 +1,8 @@
 @extends('layouts/default')
 
-{{-- ERS Phase 6A: secure asset CSV import - upload step. --}}
+{{-- ERS Phase 6A: secure asset CSV import - upload step. Phase 6C: also
+     shows the result of an import completed in the previous request
+     (count, and the created assets this user may see, escaped). --}}
 @section('title')
     {{ trans('admin/hardware/import.title') }}
     @parent
@@ -9,6 +11,34 @@
 @section('content')
     <x-container class="col-md-10 col-md-offset-1">
         @include('hardware/import/_steps', ['current' => 'upload'])
+
+        @if ($completed)
+            <x-box :header="trans('admin/hardware/import.execution.result_title')" id="asset-import-completed">
+                <p>
+                    <strong data-count="created">{{ number_format($completed['count']) }}</strong>
+                    {{ trans_choice('admin/hardware/import.execution.result_created', $completed['count']) }}
+                    @if ($completed['file'] !== '')
+                        ({{ $completed['file'] }})
+                    @endif
+                </p>
+                @if ($completed['assets']->isNotEmpty())
+                    <ul class="list-inline" id="asset-import-created-assets">
+                        @foreach ($completed['assets'] as $asset)
+                            <li>
+                                @if (isset($completed['viewable'][$asset->id]) && auth()->user()->can('view', $asset))
+                                    <a href="{{ route('hardware.show', $asset) }}">{{ $asset->asset_tag }}</a>
+                                @else
+                                    {{ $asset->asset_tag }}
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+                @if ($completed['count'] > $completed['assets']->count())
+                    <p class="text-muted">{{ trans('admin/hardware/import.execution.result_partial_list', ['shown' => number_format($completed['assets']->count())]) }}</p>
+                @endif
+            </x-box>
+        @endif
 
         <x-box :header="trans('admin/hardware/import.steps.upload')">
             <p>{{ trans('admin/hardware/import.intro') }}</p>

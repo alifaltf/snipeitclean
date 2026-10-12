@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Assets;
 
 use App\Actions\AssetImport\ConfigureAssetImportTarget;
 use App\Actions\AssetImport\CreateAssetImportSession;
+use App\Actions\AssetImport\ExecuteAssetImport;
 use App\Actions\AssetImport\SaveAssetImportMapping;
 use App\Actions\AssetImport\ValidateAssetImportSession;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AssetImport\StoreAssetImportMappingRequest;
 use App\Http\Requests\AssetImport\StoreAssetImportTargetRequest;
 use App\Http\Requests\AssetImport\StoreAssetImportUploadRequest;
+use App\Models\Asset;
+use App\Models\AssetCategoryViewScope;
 use App\Models\AssetImportSession;
 use App\Models\User;
 use App\Services\AssetImport\AssetImportAuthorizer;
@@ -20,6 +23,7 @@ use App\Services\AssetImport\AssetImportMappingSuggester;
 use App\Services\AssetImport\AssetImportReadiness;
 use App\Services\AssetImport\AssetImportSessions;
 use App\Services\AssetImport\AssetImportTargetCheck;
+use App\Services\AssetImport\Execution\AssetImportExecutionOutcome;
 use App\Services\AssetImport\Validation\AssetImportErrorReport;
 use App\Services\AssetImport\Validation\AssetImportValidator;
 use Illuminate\Contracts\View\View;
@@ -30,10 +34,10 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Throwable;
 
 /**
- * ERS Phase 6A/6B: the secure asset CSV import, steps 1-6 (upload, target,
- * mapping, review, validate, preview). Nothing here creates assets or
- * master data; the only writes are the private upload and the import
- * session row (configuration, state and validated_at).
+ * ERS Phase 6A/6B/6C: the secure asset CSV import, steps 1-6 (upload,
+ * target, mapping, review, validate, preview) and the confirmed import.
+ * Only execute() creates anything, and only new assets, through
+ * ExecuteAssetImport (all rows or none). No master data is ever created.
  *
  * Every action requires the global import permission (route middleware),
  * then AssetImportAuthorizer::mayUse (assets.create plus category Create
@@ -52,6 +56,9 @@ class AssetImportController extends Controller
         private readonly AssetImportFieldCatalog $catalog,
     ) {}
 
+    /** How many of the created assets the final result lists (all are counted). */
+    private const RESULT_LIST_SIZE = 100;
+
     public function index(Request $request): View
     {
         $user = $this->authorizedUser($request);
@@ -64,6 +71,7 @@ class AssetImportController extends Controller
             'sessions' => AssetImportSession::query()->openFor($user)->latest('id')->limit(20)->get(),
             'categoryId' => $categoryId,
             'categoryLabel' => $categoryId !== null ? ($this->authorizer->categoryOptions($user)[$categoryId] ?? null) : null,
+            'completed' => $this->completedImport($request),
         ]);
     }
 
@@ -210,8 +218,10 @@ class AssetImportController extends Controller
             'categoryLabel' => $this->authorizer->categoryOptions($user)[$importSession->category_id] ?? '',
             // Eligible only when the recorded validation passed AND it still
             // passes now; Phase 6C validates once more before writing.
-            'eligible' => $importSession->state === AssetImportSession::STATE_VALIDATED && $result->isEligible(),
+            'eligible' => $eligible = $importSession->state === AssetImportSession::STATE_VALIDATED && $result->isEligible() && ExecuteAssetImport::confirmationToken($importSession) !== null,
             'stale' => ($importSession->state === AssetImportSession::STATE_VALIDATED) !== $result->isEligible(),
+            'confirmationToken' => $eligible ? ExecuteAssetImport::confirmationToken($importSession) : null,
+            'executionErrors' => $importSession->state === AssetImportSession::STATE_EXECUTION_FAILED ? (array) $importSession->execution_errors : [],
         ]);
     }
 
@@ -237,6 +247,106 @@ class AssetImportController extends Controller
             'Cache-Control' => 'no-store, private',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /**
+     * Phase 6C: import every row of a validated session, or none. POST only
+     * (CSRF-protected); the user must tick the confirmation and send back
+     * the token of the validation they reviewed. Every check of the
+     * earlier steps runs again inside the import transaction.
+     */
+    public function execute(Request $request, string $session, ExecuteAssetImport $execute): RedirectResponse
+    {
+        $user = $this->authorizedUser($request);
+        $request->validate([
+            'confirm' => ['required', 'accepted'],
+            'confirmation' => ['required', 'string', 'size:64'],
+        ], [
+            'confirm.*' => trans('admin/hardware/import.execution.confirm_required'),
+            'confirmation.*' => trans('admin/hardware/import.execution.not_confirmed'),
+        ]);
+
+        $outcome = $execute->handle($user, $session, $request->input('confirmation'));
+        $results = fn () => redirect()->route('hardware.import.results', $outcome->session?->public_id ?? $session);
+
+        return match ($outcome->status) {
+            AssetImportExecutionOutcome::COMPLETED => redirect()->route('hardware.import.index')
+                ->with('success', trans_choice('admin/hardware/import.execution.completed', $outcome->session->imported_count, ['count' => number_format((int) $outcome->session->imported_count)]))
+                ->with('asset_import_completed', [
+                    'count' => (int) $outcome->session->imported_count,
+                    'file' => (string) $outcome->session->original_filename,
+                    'asset_ids' => array_slice($outcome->assetIds, 0, self::RESULT_LIST_SIZE),
+                ]),
+            AssetImportExecutionOutcome::NEEDS_RECONFIGURATION => $this->backTo($outcome->session, (string) $outcome->problem),
+            AssetImportExecutionOutcome::NOT_VALIDATED => $results()->with('warning', trans('admin/hardware/import.execution.not_validated')),
+            AssetImportExecutionOutcome::NOT_CONFIRMED => $results()->with('warning', trans('admin/hardware/import.execution.not_confirmed')),
+            AssetImportExecutionOutcome::REVALIDATION_FAILED => $results()->with('error', trans('admin/hardware/import.execution.revalidation_failed')),
+            AssetImportExecutionOutcome::EXECUTION_FAILED => $results()->with('error', trans('admin/hardware/import.execution.failed')),
+            AssetImportExecutionOutcome::BUSY => $results()->with('warning', trans('admin/hardware/import.execution.busy')),
+        };
+    }
+
+    /** Phase 6C: the safe diagnostics of the last rolled-back execution, as CSV. */
+    public function executionErrorReport(Request $request, string $session, AssetImportReadiness $readiness, AssetImportErrorReport $report): Response|RedirectResponse
+    {
+        $user = $this->authorizedUser($request);
+        $importSession = $this->sessions->findOpen($session, $user);
+
+        $redirect = $this->resultsRedirect($importSession, $user, $readiness);
+        if ($redirect !== null) {
+            return $redirect;
+        }
+
+        $errors = $importSession->state === AssetImportSession::STATE_EXECUTION_FAILED ? (array) $importSession->execution_errors : [];
+        if ($errors === []) {
+            return redirect()->route('hardware.import.results', $importSession->public_id)
+                ->with('info', trans('admin/hardware/import.execution.no_errors'));
+        }
+
+        return response($report->rows(array_map(fn ($error) => [
+            $error['row'] ?? '', $error['asset_tag'] ?? '', $error['field'] ?? '', $error['message'] ?? '',
+        ], $errors)), 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="asset-import-execution-errors-'.substr($importSession->public_id, 0, 8).'.csv"',
+            'Cache-Control' => 'no-store, private',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
+     * The result of an import completed in the previous request, from the
+     * ids the execution flashed into this user's session: the count, and
+     * the tags of those assets that this user created. Category View is
+     * not required to import (approved Phase 6 decision), so only the
+     * category-view scope is lifted, and only for the user's own new
+     * assets; the company scope still applies. The view links a tag only
+     * when the user may view that asset.
+     *
+     * @return array{count: int, file: string, assets: \Illuminate\Support\Collection<int, Asset>, viewable: array<int, int>}|null
+     */
+    private function completedImport(Request $request): ?array
+    {
+        $flash = $request->session()->get('asset_import_completed');
+        if (! is_array($flash) || ! isset($flash['count'], $flash['asset_ids']) || ! is_array($flash['asset_ids'])) {
+            return null;
+        }
+        $ids = array_values(array_filter($flash['asset_ids'], 'is_int'));
+
+        $assets = $ids === [] ? collect() : Asset::query()
+            ->withoutGlobalScope(AssetCategoryViewScope::class)
+            ->where('created_by', $request->user()->id)
+            ->whereIn('id', $ids)
+            ->orderBy('id')
+            ->get(['id', 'asset_tag', 'name', 'company_id', 'model_id']);
+
+        return [
+            'count' => (int) $flash['count'],
+            'file' => (string) ($flash['file'] ?? ''),
+            'assets' => $assets,
+            // Linked only when the normal (category-scoped) asset pages
+            // would show it; the view also checks the native view policy.
+            'viewable' => $assets->isEmpty() ? [] : array_flip(Asset::query()->whereIn('id', $assets->modelKeys())->pluck('id')->all()),
+        ];
     }
 
     /** Where to send the user instead of the results, or null when results can be shown. */

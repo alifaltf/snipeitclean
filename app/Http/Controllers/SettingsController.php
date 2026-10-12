@@ -20,6 +20,8 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\MailTest;
 use App\Rules\CssColor;
+use App\Services\AssetUniqueness\AssetUniquenessException;
+use App\Services\AssetUniqueness\AssetUniquenessTransitions;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -156,9 +158,19 @@ class SettingsController extends Controller
             $setting->per_page = 200;
         }
 
-        if ($setting->save()) {
-            return redirect()->route('settings.index')
+        // ERS: switching "unique serial" also switches the database key;
+        // when it cannot be enforced nothing is saved.
+        try {
+            $result = app(AssetUniquenessTransitions::class)->saveSettings($setting, fn () => $setting->save());
+        } catch (AssetUniquenessException $exception) {
+            return redirect()->back()->withInput()->with('error', $exception->getMessage());
+        }
+
+        if ($result['saved']) {
+            $redirect = redirect()->route('settings.index')
                 ->with('success', trans('admin/settings/message.update.success'));
+
+            return $result['warning'] !== null ? $redirect->with('warning', $result['warning']) : $redirect;
         }
 
         return redirect()->back()->withInput()->withErrors($setting->getErrors());

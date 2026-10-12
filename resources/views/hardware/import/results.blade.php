@@ -1,8 +1,11 @@
 @extends('layouts/default')
 
-{{-- ERS Phase 6B: validation results and preview of resolved values.
-     Every value is escaped; encrypted custom fields arrive already masked.
-     Rows are paginated. There is no working import action (Phase 6C). --}}
+{{-- ERS Phase 6B/6C: validation results and preview of resolved values,
+     and the confirmation that imports them. Every value is escaped;
+     encrypted custom fields arrive already masked. Rows are paginated. The
+     import form appears only when the session is validated and every row
+     still passes; it posts the token of this validation, and the import
+     validates everything again before creating anything. --}}
 @section('title')
     {{ trans('admin/hardware/import.results.title') }}
     @parent
@@ -61,6 +64,33 @@
             @if ($stale)
                 <div class="callout callout-warning" role="alert" id="asset-import-stale">{{ trans('admin/hardware/import.results.stale') }}</div>
             @endif
+            @if ($executionErrors !== [])
+                <div class="callout callout-danger" role="alert" id="asset-import-execution-failed">
+                    <p><strong>{{ trans('admin/hardware/import.execution.failed') }}</strong></p>
+                    @if ($importSession->execution_failed_at)
+                        <p>{{ trans('admin/hardware/import.execution.failed_at') }} {{ \App\Helpers\Helper::getFormattedDateObject($importSession->execution_failed_at, 'datetime', false) }}</p>
+                    @endif
+                    <ul>
+                        @foreach (array_slice($executionErrors, 0, 20) as $error)
+                            <li>
+                                @if (! empty($error['row']))
+                                    {{ trans('admin/hardware/import.results.row') }} {{ $error['row'] }}@if (! empty($error['asset_tag'])) ({{ $error['asset_tag'] }})@endif:
+                                @endif
+                                @if (! empty($error['field']))
+                                    {{ $error['field'] }} &mdash;
+                                @endif
+                                {{ $error['message'] ?? '' }}
+                            </li>
+                        @endforeach
+                    </ul>
+                    @if (count($executionErrors) > 20)
+                        <p>{{ trans('admin/hardware/import.execution.more_errors', ['count' => number_format(count($executionErrors) - 20)]) }}</p>
+                    @endif
+                    <a class="btn btn-default btn-sm" id="asset-import-download-execution-errors" href="{{ route('hardware.import.execution_errors', $importSession->public_id) }}">
+                        <x-icon type="download" /> {{ trans('admin/hardware/import.execution.download_errors') }}
+                    </a>
+                </div>
+            @endif
             @if ($eligible)
                 <div class="callout callout-success" role="status" id="asset-import-eligible">{{ trans('admin/hardware/import.results.eligible') }}</div>
             @else
@@ -80,9 +110,19 @@
                         @csrf
                         <button type="submit" class="btn btn-primary">{{ trans('admin/hardware/import.results.revalidate') }}</button>
                     </form>
-                    <button type="button" class="btn btn-success pull-right" disabled aria-disabled="true" id="asset-import-confirm-disabled">
-                        {{ trans('admin/hardware/import.results.confirm_disabled') }}
-                    </button>
+                    @if ($eligible)
+                        <form method="post" action="{{ route('hardware.import.execute', $importSession->public_id) }}" class="pull-right" id="asset-import-execute">
+                            @csrf
+                            <input type="hidden" name="confirmation" value="{{ $confirmationToken }}">
+                            <label class="form-control" style="display: inline-block; width: auto; margin-right: 10px;">
+                                <input type="checkbox" name="confirm" value="1" required id="asset-import-confirm-checkbox">
+                                {{ trans_choice('admin/hardware/import.execution.confirm_label', $result->totalRows(), ['count' => number_format($result->totalRows())]) }}
+                            </label>
+                            <button type="submit" class="btn btn-success" id="asset-import-confirm">
+                                {{ trans('admin/hardware/import.execution.confirm_button') }}
+                            </button>
+                        </form>
+                    @endif
                 </div>
             </x-slot:customfooter>
         </x-box>

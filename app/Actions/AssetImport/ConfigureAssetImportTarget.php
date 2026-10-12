@@ -50,6 +50,9 @@ final class ConfigureAssetImportTarget
             }
             $session->state = AssetImportSession::STATE_TARGET_SELECTED;
             $session->validated_at = null;
+            $session->validation_nonce = null;
+            $session->execution_errors = null;
+            $session->execution_failed_at = null;
 
             if ($categoryChanged || ! $this->mappingStillFits($session, $user)) {
                 $session->mapping = null;

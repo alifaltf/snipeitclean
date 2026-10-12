@@ -22,11 +22,14 @@ use App\Models\Statuslabel;
 use App\Models\User;
 use App\Rules\AuthorisedAssetModel;
 use App\Services\AssetCategoryWriteAuthorizer;
+use App\Services\AssetUniqueness\AssetRestorer;
+use App\Services\AssetUniqueness\UniqueConstraintViolation;
 use App\View\Label;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
@@ -35,6 +38,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\MessageBag;
 
 class BulkAssetsController extends Controller
 {
@@ -615,8 +619,21 @@ class BulkAssetsController extends Controller
                     } // endforeach
                 }
 
-                // Check if it passes validation, and then try to save
-                if (! $asset->update($this->update_array)) {
+                // Check if it passes validation, and then try to save.
+                // ERS: a duplicate refused by an ERS uniqueness key is this
+                // asset's error, like a validation error, not a crash halfway
+                // through the batch.
+                try {
+                    $saved = $asset->update($this->update_array);
+                } catch (QueryException $exception) {
+                    $violation = UniqueConstraintViolation::detect($exception);
+                    if ($violation === null) {
+                        throw $exception;
+                    }
+                    $asset->setErrors(new MessageBag([$violation->attribute() => [$violation->message()]]));
+                    $saved = false;
+                }
+                if (! $saved) {
 
                     // Build the error array
                     foreach ($asset->getErrors()->toArray() as $key => $message) {
@@ -1292,8 +1309,24 @@ class BulkAssetsController extends Controller
             $this->authorize('restoreRecord', $asset);
         }
 
+        // ERS: each asset is restored on its own (see AssetRestorer); the
+        // ones refused because a unique value is taken are reported, never
+        // silently skipped or retagged.
+        $restorer = app(AssetRestorer::class);
+        $failures = [];
         foreach ($assets as $asset) {
-            $asset->restore();
+            $errors = $restorer->restore($asset);
+            if ($errors !== null) {
+                $failures[] = trans('admin/hardware/uniqueness.restore_failed', ['tag' => $asset->asset_tag, 'error' => reset($errors)]);
+            }
+        }
+
+        if ($failures !== []) {
+            $restored = count($assets) - count($failures);
+            $redirect = redirect()->route('hardware.index')
+                ->with('error', trans_choice('admin/hardware/uniqueness.restore_partial', count($failures), ['count' => count($failures)]).' '.implode(' ', $failures));
+
+            return $restored > 0 ? $redirect->with('success', trans('admin/hardware/message.restore.success')) : $redirect;
         }
 
         return redirect()->route('hardware.index')->with('success', trans('admin/hardware/message.restore.success'));
