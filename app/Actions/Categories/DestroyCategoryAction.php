@@ -13,6 +13,7 @@ use App\Models\AssetCategoryPermission;
 use App\Models\AssetCategoryViewScope;
 use App\Models\Category;
 use App\Services\AssetCategoryPermissionService;
+use App\Services\AssetTableLayout\AssetTableLayoutService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -81,6 +82,10 @@ class DestroyCategoryAction
         // ERS Phase 5A: grants never outlive a live category.
         AssetCategoryPermission::query()->where('category_id', $category->getKey())->delete();
         app(AssetCategoryPermissionService::class)->flush();
+
+        // ERS Phase 7A: and neither does its asset-table layout (the foreign
+        // key also removes it when the category row is purged).
+        app(AssetTableLayoutService::class)->forget((int) $category->getKey());
 
         $category->delete();
 

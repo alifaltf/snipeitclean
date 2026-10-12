@@ -14,6 +14,7 @@ use App\Http\Controllers\BulkManufacturersController;
 use App\Http\Controllers\BulkStatuslabelsController;
 use App\Http\Controllers\BulkSuppliersController;
 use App\Http\Controllers\CategoriesController;
+use App\Http\Controllers\CategoryTableLayoutController;
 use App\Http\Controllers\CompaniesController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentsController;
@@ -115,6 +116,14 @@ Route::group(['middleware' => 'auth'], function () {
     ]);
 
     Route::post('categories/bulk/delete', [BulkCategoriesController::class, 'destroy'])->name('categories.bulk.delete');
+
+    // ERS Phase 7A: asset-table column layout of a final asset category.
+    Route::get('categories/{category}/table-layout', [CategoryTableLayoutController::class, 'edit'])
+        ->name('categories.table-layout.edit');
+    Route::put('categories/{category}/table-layout', [CategoryTableLayoutController::class, 'update'])
+        ->name('categories.table-layout.update');
+    Route::delete('categories/{category}/table-layout', [CategoryTableLayoutController::class, 'destroy'])
+        ->name('categories.table-layout.reset');
 
     /*
     * Labels

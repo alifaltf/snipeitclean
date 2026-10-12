@@ -267,7 +267,7 @@ switch ($argv[1] ?? '') {
         }
         break;
 
-    case 'artisan': // artisan <command> [answer]  (e.g. "migrate" or "migrate:rollback --step=1")
+    case 'artisan': // artisan <command> [answer]  (e.g. "migrate" or "migrate:rollback --path=database/migrations/<file>.php")
         $parts = preg_split('/\s+/', trim($argv[2]));
         $parameters = ['command' => array_shift($parts)];
         foreach ($parts as $part) {

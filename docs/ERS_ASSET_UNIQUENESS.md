@@ -218,11 +218,17 @@ already created stay, the failing key's column is removed, and Laravel does
 not record the migration. Running `migrate` again (or `--repair`) skips
 complete keys, finishes or rebuilds partial ones, and creates the rest.
 
-**Rollback:** `php artisan migrate:rollback --step=1` removes every
-ERS-owned key (ledger rows only; foreign objects untouched) and leaves all
-asset data unchanged; the application checks remain as before. A second
-step drops the (then empty) ledger table. Restoring the keys later is a
-normal `migrate`, with the same audit.
+**Rollback:** find the migration's batch with `php artisan migrate:status`,
+then `php artisan migrate:rollback --batch=<batch>
+--path=database/migrations/2026_10_08_000100_enforce_live_asset_uniqueness.php`.
+It removes every ERS-owned key (ledger rows only; foreign objects
+untouched) and leaves all asset data unchanged; the application checks
+remain as before. Rolling back
+`database/migrations/2026_10_08_000000_create_ers_asset_uniqueness_keys_table.php`
+the same way then drops the (empty) ledger table. Name the file and its
+batch rather than using `--step`: later ERS migrations (Phase 7A onwards)
+may be newer and would be rolled back instead.
+Restoring the keys later is a normal `migrate`, with the same audit.
 
 ## 8. Remaining limitations
 

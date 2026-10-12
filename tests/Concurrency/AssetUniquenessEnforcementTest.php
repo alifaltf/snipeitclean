@@ -672,7 +672,10 @@ class AssetUniquenessEnforcementTest extends TestCase
     #[Test]
     public function the_migration_refuses_duplicates_retries_partial_runs_and_rolls_back(): void
     {
-        $this->assertSame(0, $this->w(['artisan', 'migrate:rollback --step=1'])['exit']);
+        // Rolled back by file: later migrations (e.g. Phase 7A) are not affected.
+        $rollback = $this->w(['artisan', 'migrate:rollback --batch=1 --path=database/migrations/2026_10_08_000100_enforce_live_asset_uniqueness.php']);
+        $this->assertSame(0, $rollback['exit']);
+        $this->assertStringContainsString('2026_10_08_000100_enforce_live_asset_uniqueness', $rollback['output']);
         $this->assertFalse($this->key('asset_tag')['column']);
         $this->assertSame(0, (int) $this->scalar('SELECT COUNT(*) FROM ers_asset_uniqueness_keys'));
 

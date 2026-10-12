@@ -48,6 +48,28 @@ Each final subcategory has:
 
 Example: Laptop shows Laptop fields; Chair shows Chair fields.
 
+### 3.1 Approved Phase 7 decisions: category asset-table layouts
+
+- Each final asset category may have its own asset-table column layout. Navigation groups cannot have layouts.
+- No category names or IDs are hardcoded; layouts are configured through the website and stored in the database.
+- A layout is an ordered list of approved standard asset fields and eligible custom fields. A custom field is eligible for a final category only while at least one live asset model in that category uses it through its fieldset.
+- Hiding a column only removes it from the layout. It never deletes or changes asset data or custom-field values.
+- A final category that has not been configured uses a safe default layout: Asset Tag, Name, Model, Serial, Status. New final categories therefore start with the default.
+- New custom fields are never added to existing layouts automatically.
+- Super Admin may always configure layouts. Anyone else needs both existing global permissions "Edit Categories" (`categories.edit`) and "Edit Custom Fields" (`customfields.edit`); the global Admin permission, which Snipe-IT's category and custom-field policies already accept, also qualifies. Asset-category View/Create/Edit/Delete grants, company scope and location never grant layout administration. The same rule applies to the configuration page, saving, reordering and restoring the default.
+- Encrypted-field visibility remains controlled by Snipe-IT's existing "View Encrypted Custom Fields" permission. The configuration page shows field names only, never values.
+- Phase 7A stores and manages the configuration only (`asset_category_columns`, one row per category and column with its position; the category's own page "Asset Table Columns", reached from the category edit page).
+- Phase 7B will apply the layouts to asset tables, searching, sorting and exports.
+- Phase 7C will finish form, fieldset and CSV regression coverage.
+
+Phase 7A details:
+
+- The approved standard fields are kept in one list (`AssetTableFieldCatalog`). Columns that every asset table has (selection, actions, check-in/check-out) are not configurable, and the category column is not offered.
+- Saving replaces the category's complete layout in one database transaction after locking the category row and re-checking the category and every column; the last save to commit wins and is stored exactly. The database refuses a repeated column or position within a category.
+- Restoring the default deletes only that category's layout rows. Deleting a category, or turning it into a navigation group or another category type, removes its layout; a purged category's layout is also removed by the foreign key.
+- If a model or fieldset changes later, stored columns that are no longer eligible are ignored when the layout is read (they are not shown); if none remains, the default layout is used. Stored rows are only replaced when the layout is saved again.
+- Rollback: `php artisan migrate:rollback --batch=<batch> --path=database/migrations/2026_10_12_000000_create_asset_category_columns_table.php` (batch from `php artisan migrate:status`) drops the layout table; every final category then uses the default layout again. No asset or custom-field data is stored there.
+
 ## 4. Custom Fields
 
 Super Admin can create, configure, order, archive and remove custom fields through the website.

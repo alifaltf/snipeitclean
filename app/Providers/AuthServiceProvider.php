@@ -42,6 +42,7 @@ use App\Policies\PredefinedKitPolicy;
 use App\Policies\StatuslabelPolicy;
 use App\Policies\SupplierPolicy;
 use App\Policies\UserPolicy;
+use App\Services\AssetTableLayout\AssetTableLayoutAccess;
 use Carbon\CarbonInterval;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
@@ -181,6 +182,18 @@ class AuthServiceProvider extends ServiceProvider
         // closed even if that hook changes.
         Gate::define('categories.manage_hierarchy', function ($user) {
             return $user->isSuperUser() === true;
+        });
+
+        // ERS Phase 7A: who may configure a final asset category's asset
+        // table columns (view the configuration page, save, reorder, reset).
+        // Super Users always (also via Gate::before() above). Anyone else
+        // needs BOTH global "Edit Categories" and global "Edit Custom
+        // Fields", checked through the existing class-level policies, so
+        // the global Admin permission (which those policies accept for every
+        // item type) also qualifies. Category-level View/Create/Edit/Delete
+        // grants and company or location scope never grant it.
+        Gate::define(AssetTableLayoutAccess::ABILITY, function ($user) {
+            return AssetTableLayoutAccess::allows($user);
         });
 
         // ERS Phase 5A: only a real Super User may view or change a

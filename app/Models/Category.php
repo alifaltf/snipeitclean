@@ -367,6 +367,17 @@ class Category extends SnipeModel
     }
 
     /**
+     * ERS Phase 7A: stored asset-table columns of this final asset category,
+     * in order. Read the effective layout through
+     * App\Services\AssetTableLayout\AssetTableLayoutService, which ignores
+     * keys that are no longer eligible.
+     */
+    public function assetTableColumns(): HasMany
+    {
+        return $this->hasMany(AssetCategoryColumn::class, 'category_id')->orderBy('position')->orderBy('id');
+    }
+
+    /**
      * True when live child categories still point at this category. Uses a
      * preloaded children_count (withCount('children as children_count'))
      * when present to avoid a query per row in listings.

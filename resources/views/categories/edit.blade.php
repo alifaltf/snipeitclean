@@ -135,6 +135,26 @@
 
         </x-form>
 
+        {{-- ERS Phase 7A: asset-table columns of a saved final asset category.
+             Never shown for navigation groups or other category types; the
+             layout page checks the same rules on the server. --}}
+        @can(\App\Services\AssetTableLayout\AssetTableLayoutAccess::ABILITY)
+            @if (app(\App\Services\AssetTableLayout\AssetTableLayoutService::class)->isConfigurable($item))
+                <div class="box box-default" id="ers-category-table-layout">
+                    <div class="box-header with-border">
+                        <h2 class="box-title">{{ trans('admin/categories/table_layout.title') }}</h2>
+                    </div>
+                    <div class="box-body">
+                        <p>{{ trans('admin/categories/table_layout.intro') }}</p>
+                        <p class="help-block">{{ trans('admin/categories/table_layout.help_hidden') }}</p>
+                        <a href="{{ route('categories.table-layout.edit', ['category' => $item->id]) }}" class="btn btn-default">
+                            {{ trans('admin/categories/table_layout.manage') }}
+                        </a>
+                    </div>
+                </div>
+            @endif
+        @endcan
+
     </x-container>
 
     @if ($snipeSettings->default_eula_text != '')

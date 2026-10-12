@@ -7,6 +7,7 @@ use App\Models\AssetModel;
 use App\Models\Category;
 use App\Services\AssetCategoryPermissionService;
 use App\Services\AssetCategoryTree;
+use App\Services\AssetTableLayout\AssetTableLayoutService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -112,6 +113,9 @@ final class SaveCategoryHierarchyAction
             if ($category->category_type !== 'asset' || $category->is_assignable === false) {
                 AssetCategoryPermission::query()->where('category_id', $category->getKey())->delete();
                 app(AssetCategoryPermissionService::class)->flush();
+
+                // ERS Phase 7A: likewise its asset-table layout.
+                app(AssetTableLayoutService::class)->forget((int) $category->getKey());
             }
 
             return $category;
