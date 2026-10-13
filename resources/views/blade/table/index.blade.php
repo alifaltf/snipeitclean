@@ -10,6 +10,11 @@
     'fixed_right_number' => null,
     'sort_order' => 'asc',
     'sort_field' => 'name',
+    // ERS Phase 7B: a category asset table keeps its own column/cookie
+    // state and offers the server-side CSV export instead of the
+    // client-side one.
+    'cookie_id' => null,
+    'show_export' => null,
 ])
 
 @aware(['name'])
@@ -27,7 +32,7 @@
         'snipe-table--sticky-right-' . $fixed_right_number => (bool) $fixed_right_number,
         'snipe-table--sticky-left-' . $fixed_number => (bool) $fixed_number,
     ])
-    data-cookie-id-table="{{ $name }}ListingTable"
+    data-cookie-id-table="{{ $cookie_id ?? $name.'ListingTable' }}"
     data-id-table="{{ $name }}ListingTable"
     data-sort-order="{{ $sort_order }}"
     data-toolbar="#{{ Illuminate\Support\Str::camel($name) }}Toolbar"
@@ -50,6 +55,10 @@
 
     @if ($buttons)
         data-buttons="{{ $buttons }}"
+    @endif
+
+    @if ($show_export !== null)
+        data-show-export="{{ $show_export ? 'true' : 'false' }}"
     @endif
 
     @if ($api_url)

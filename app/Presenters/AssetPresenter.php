@@ -3,6 +3,7 @@
 namespace App\Presenters;
 
 use App\Models\CustomField;
+use App\Services\AssetTableLayout\AssetTableLayoutQuery;
 use Carbon\CarbonImmutable;
 use DateTime;
 use Illuminate\Support\Facades\Storage;
@@ -435,6 +436,54 @@ class AssetPresenter extends Presenter
         ];
 
         return json_encode($layout);
+    }
+
+    /**
+     * ERS Phase 7B: the column layout of a final asset category's asset
+     * table: the selection checkbox, the category's effective columns in
+     * their saved order (each defined exactly as in dataTableLayout(), so
+     * the same formatters apply), then check-in/check-out and actions.
+     * Columns outside the layout are not included at all. Sorting and
+     * searching are offered only where the server allows them
+     * (AssetTableLayoutQuery).
+     *
+     * @return string JSON
+     */
+    public static function categoryDataTableLayout(AssetTableLayoutQuery $layout)
+    {
+        $standard = [];
+        foreach (json_decode(self::dataTableLayout(), true) as $definition) {
+            $standard[$definition['field']] = $definition;
+        }
+
+        $columns = [$standard['checkbox']];
+        foreach ($layout->columns as $column) {
+            if ($column->isCustomField()) {
+                $definition = [
+                    'field' => $column->dbColumn,
+                    'scope' => 'col',
+                    'title' => e($column->label),
+                    'formatter' => 'customFieldsFormatter',
+                    'escape' => true,
+                    'class' => $column->encrypted ? 'css-padlock' : '',
+                ];
+            } else {
+                $definition = $standard[$column->field()] ?? [
+                    'field' => $column->field(),
+                    'scope' => 'col',
+                    'title' => e($column->label),
+                ];
+            }
+            $definition['visible'] = true;
+            $definition['switchable'] = true;
+            $definition['sortable'] = $layout->sortExpression($column) !== null;
+            $definition['searchable'] = $layout->searchExpression($column) !== null;
+            $columns[] = $definition;
+        }
+        $columns[] = $standard['checkincheckout'];
+        $columns[] = $standard['actions'];
+
+        return json_encode($columns);
     }
 
     public static function assignedAccessoriesDataTableLayout()

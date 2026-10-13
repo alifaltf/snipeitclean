@@ -59,7 +59,7 @@ Example: Laptop shows Laptop fields; Chair shows Chair fields.
 - Super Admin may always configure layouts. Anyone else needs both existing global permissions "Edit Categories" (`categories.edit`) and "Edit Custom Fields" (`customfields.edit`); the global Admin permission, which Snipe-IT's category and custom-field policies already accept, also qualifies. Asset-category View/Create/Edit/Delete grants, company scope and location never grant layout administration. The same rule applies to the configuration page, saving, reordering and restoring the default.
 - Encrypted-field visibility remains controlled by Snipe-IT's existing "View Encrypted Custom Fields" permission. The configuration page shows field names only, never values.
 - Phase 7A stores and manages the configuration only (`asset_category_columns`, one row per category and column with its position; the category's own page "Asset Table Columns", reached from the category edit page).
-- Phase 7B will apply the layouts to asset tables, searching, sorting and exports.
+- Phase 7B applies the layouts to asset tables, the asset API (on request), searching, sorting and CSV export (details below).
 - Phase 7C will finish form, fieldset and CSV regression coverage.
 
 Phase 7A details:
@@ -69,6 +69,22 @@ Phase 7A details:
 - Restoring the default deletes only that category's layout rows. Deleting a category, or turning it into a navigation group or another category type, removes its layout; a purged category's layout is also removed by the foreign key.
 - If a model or fieldset changes later, stored columns that are no longer eligible are ignored when the layout is read (they are not shown); if none remains, the default layout is used. Stored rows are only replaced when the layout is saved again.
 - Rollback: `php artisan migrate:rollback --batch=<batch> --path=database/migrations/2026_10_12_000000_create_asset_category_columns_table.php` (batch from `php artisan migrate:status`) drops the layout table; every final category then uses the default layout again. No asset or custom-field data is stored there.
+
+Phase 7B details (applying the layouts):
+
+- Selecting a final category in the asset list shows the selection checkbox, that category's effective columns in their saved order, then check-in/check-out and actions. Each column keeps the asset list's existing formatting. The table keeps its own browser-saved state per category and layout. The unfiltered asset list, navigation groups and status lists without a final category keep Snipe-IT's normal columns.
+- The asset API applies a layout only when asked: `GET /api/v1/hardware?asset_category=<final category id>&asset_table_layout=1`. The response then also contains `layout` (`category_id`, `explicit`, and `columns` with key, field, title, kind, sortable, searchable, encrypted). Without `asset_table_layout=1`, or for a navigation group or a category the user may not view, the API behaves exactly as before. Rows keep their existing shape.
+- In layout mode, only the layout's own columns can narrow, order or count the list:
+  - Search looks only at the layout's searchable columns, matched literally anywhere in the value. Per-column filters (`filter` JSON, combined with `filter_operator` `and`/`or`) accept only those columns.
+  - The list filters (`status_type`, `status_id`, `company_id`, `model_id`, `location_id`, `rtd_location_id`, `supplier_id`, `manufacturer_id`, `assigned_to`/`assigned_type`, `asset_tag`, `serial`, `order_number`, `asset_eol_date`, `byod`, `requestable`, and exact custom-field values) apply only when their field is a column of the layout; a filter on a hidden field is ignored and changes neither the rows nor the total. `status_type=Deleted` still lists deleted assets; `category_id` and `depreciation_id` do not apply (the category is the selected one). Without a usable status filter, archived assets follow the "show archived" setting as in the normal list. Values must be single values of the expected shape (ids are positive integers); anything else is ignored.
+  - Sorting accepts only the layout's sortable columns (allowlist in `AssetTableFieldCatalog::STANDARD_QUERY`; custom fields by their own column, numeric fields as numbers); anything else falls back to newest first.
+  - Encrypted custom fields are never filtered, searched or sorted.
+  - A custom field only has a value for an asset whose current, live model's fieldset contains it. A value left in the column by an earlier fieldset never matches a search or filter, sorts as no value (first ascending, last descending) and is not exported.
+  - Totals and pagination are counted after all filters. Outside layout mode the API's filters work exactly as before.
+- "Export CSV" on a final category's list (`/hardware/category-export?asset_category=<id>`) exports that category's effective columns in order, with the list's formatting, for exactly the assets and order the table shows. The link carries the page's list filters (company, status type, status, order number), and when clicked also the table's current search, column filters and sorting. The server applies them through the same code and rules as the table (`AssetTableLayoutQuery::applyListFilters`, `applySearch`, `applySort`), validating every value again. Company scope and category View permissions apply; deleted assets appear only in the "Deleted" list. The export is refused (not found) for navigation groups and categories the user may not view. Every cell and header is protected against spreadsheet formulas, whatever `CSV_ESCAPE_FORMULAS` says. The browser-side table export is switched off on category lists so this safe export is the one offered.
+- Encrypted custom-field values are shown, returned and exported only to users with "View Encrypted Custom Fields"; everyone else gets "ENCRYPTED", never the value or its ciphertext. Configuration pages and table definitions contain field names only.
+- Related records and custom-field definitions are loaded once per page or export chunk, so the number of database queries does not grow with the number of assets.
+- Nothing here changes asset data, forms, fieldsets or the secure CSV import.
 
 ## 4. Custom Fields
 

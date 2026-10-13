@@ -238,9 +238,13 @@ final class AssetTableLayoutService
             ->whereIn('custom_fields.id', DB::table('custom_field_custom_fieldset')
                 ->whereIn('custom_fieldset_id', $fieldsetIds)
                 ->select('custom_field_id'))
+            ->whereNotNull('custom_fields.db_column')
             ->orderBy('custom_fields.name')
             ->orderBy('custom_fields.id')
-            ->get(['custom_fields.id', 'custom_fields.name', 'custom_fields.field_encrypted'])
+            ->get(['custom_fields.id', 'custom_fields.name', 'custom_fields.field_encrypted', 'custom_fields.db_column', 'custom_fields.format'])
+            // ERS Phase 7B: only fields with a usable column on assets (a
+            // field whose column was never created cannot be shown).
+            ->filter(fn (CustomField $field) => preg_match('/\A[A-Za-z0-9_]{1,64}\z/', (string) $field->db_column) === 1)
             ->keyBy(fn (CustomField $field) => (int) $field->id);
     }
 
@@ -281,6 +285,8 @@ final class AssetTableLayoutService
             (string) $field->name,
             (int) $field->id,
             (string) $field->field_encrypted === '1',
+            $field->db_column !== null && $field->db_column !== '' ? (string) $field->db_column : null,
+            $field->format !== null ? (string) $field->format : null,
         );
     }
 

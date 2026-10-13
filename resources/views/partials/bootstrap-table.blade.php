@@ -854,6 +854,11 @@
                         newParams.filter_operator = $(table).data('advanced-search-filter-operator') || data_with_default('advanced-search-operator', 'and');
                     }
 
+                    // ERS Phase 7B: remembered so a category list's "Export CSV"
+                    // link can carry the table's current search, filters and
+                    // sorting (the server validates them again).
+                    $(table).data('ers-last-query', newParams);
+
                     return newParams;
                 },
                 formatLoadingMessage: function () {

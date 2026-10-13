@@ -5,6 +5,7 @@ use App\Http\Controllers\Assets\AssetCheckoutController;
 use App\Http\Controllers\Assets\AssetImportController;
 use App\Http\Controllers\Assets\AssetsController;
 use App\Http\Controllers\Assets\BulkAssetsController;
+use App\Http\Controllers\Assets\CategoryAssetExportController;
 use App\Http\Controllers\BulkMaintenancesController;
 use App\Http\Controllers\MaintenancesController;
 use App\Models\Asset;
@@ -78,6 +79,12 @@ Route::group(
                 Route::post('{session}/execute', [AssetImportController::class, 'execute'])->name('execute');
                 Route::get('{session}/execution-errors', [AssetImportController::class, 'executionErrorReport'])->name('execution_errors');
             });
+
+        // ERS Phase 7B: CSV export of one final category's asset table in its
+        // own columns (?asset_category=<id>). Registered before the hardware
+        // resource so "category-export" is never treated as an asset id.
+        Route::get('category-export', [CategoryAssetExportController::class, 'export'])
+            ->name('hardware.category-export');
 
         Route::get('bulkaudit', [AssetsController::class, 'quickScan'])
             ->name('assets.bulkaudit')

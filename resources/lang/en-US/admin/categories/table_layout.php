@@ -28,6 +28,10 @@ return [
     'reset' => 'Restore default layout',
     'reset_help' => 'Removes this category\'s own layout. The category then uses the default layout again.',
 
+    // ERS Phase 7B: category asset table and export.
+    'export_csv' => 'Export CSV',
+    'export_filename' => 'assets',
+
     'message' => [
         'saved' => 'The asset table layout was saved.',
         'reset' => 'The default asset table layout was restored.',

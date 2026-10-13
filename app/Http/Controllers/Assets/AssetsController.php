@@ -23,6 +23,7 @@ use App\Services\AssetCategoryAccess;
 use App\Services\AssetCategorySelection;
 use App\Services\AssetCategoryWriteAuthorizer;
 use App\Services\AssetImport\AssetImportAuthorizer;
+use App\Services\AssetTableLayout\AssetTableLayoutQuery;
 use App\Services\AssetUniqueness\AssetRestorer;
 use App\View\Label;
 use Carbon\Carbon;
@@ -86,10 +87,15 @@ class AssetsController extends Controller
             && ! $assetCategory->isNavigationGroup()
             && app(AssetImportAuthorizer::class)->mayImportInto($request->user(), $assetCategory->id());
 
+        // ERS Phase 7B: a selected final category shows its own table layout
+        // (navigation groups and the unfiltered list keep the normal columns).
+        $tableLayout = AssetTableLayoutQuery::forSelection($assetCategory);
+
         return view('hardware/index')
             ->with('company', $company)
             ->with('assetCategory', $assetCategory)
-            ->with('canImportIntoCategory', $canImportIntoCategory);
+            ->with('canImportIntoCategory', $canImportIntoCategory)
+            ->with('tableLayout', $tableLayout);
     }
 
     /**

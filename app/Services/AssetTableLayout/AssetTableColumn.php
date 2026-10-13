@@ -16,7 +16,26 @@ final class AssetTableColumn
         public readonly string $label,
         public readonly ?int $customFieldId = null,
         public readonly bool $encrypted = false,
+        // ERS Phase 7B: the custom field's column on assets and its format
+        // (for table formatting, searching and sorting). Null for standard
+        // fields.
+        public readonly ?string $dbColumn = null,
+        public readonly ?string $format = null,
     ) {}
+
+    /**
+     * ERS Phase 7B: the field name the asset table, the API rows and the
+     * sort/search parameters use for this column: the standard field name,
+     * or the custom field's column.
+     */
+    public function field(): string
+    {
+        if ($this->isCustomField()) {
+            return (string) $this->dbColumn;
+        }
+
+        return substr($this->key, strlen(AssetTableFieldCatalog::KIND_STANDARD.':'));
+    }
 
     public function isCustomField(): bool
     {

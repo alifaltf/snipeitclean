@@ -32,6 +32,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetCategorySelection;
 use App\Services\AssetCategoryWriteAuthorizer;
+use App\Services\AssetTableLayout\AssetTableLayoutQuery;
 use App\Services\AssetUniqueness\AssetRestorer;
 use App\Services\AssetUniqueness\UniqueConstraintViolation;
 use App\View\Label;
@@ -100,6 +101,14 @@ class AssetsController extends Controller
         }
 
         $settings = Setting::getSettings();
+
+        // ERS Phase 7B: with asset_table_layout=1 and a final asset category
+        // the user may view (?asset_category=<id>), the list follows that
+        // category's table layout: filters, search and sorting are limited
+        // to its columns and the response describes them. Without it,
+        // nothing below changes. (Not for the audit/check-in due lists or the
+        // depreciation report, which keep their own behaviour.)
+        $layout = ($action === null && ! $filter_non_deprecable_assets) ? AssetTableLayoutQuery::forApiRequest($request) : null;
 
         $allowed_columns = [
             'id',
@@ -177,6 +186,14 @@ class AssetsController extends Controller
                 'model.depreciation',
                 'supplier'
             ); // it might be tempting to add 'assetlog' here, but don't. It blows up update-heavy users.
+
+        if ($layout !== null) {
+            // ERS Phase 7B: the category table's own list. Its filters, search
+            // and sorting are AssetTableLayoutQuery's (shared with the category
+            // CSV export), so only the layout's columns can narrow or order
+            // it; none of the generic filters below apply.
+            return $this->layoutIndex($assets, $layout, $request, $transformer);
+        }
 
         if ($filter_non_deprecable_assets) {
             $non_deprecable_models = AssetModel::select('id')->whereNotNull('depreciation_id')->get();
@@ -494,6 +511,38 @@ class AssetsController extends Controller
         }
 
         return (new $transformer)->transformAssets($assets, $total, $request);
+    }
+
+    /**
+     * ERS Phase 7B: the asset list of a final category in its table layout
+     * (asset_table_layout=1). Company scope and category View permissions
+     * come from the Asset query's global scopes, as everywhere else.
+     */
+    private function layoutIndex($assets, AssetTableLayoutQuery $layout, FilterRequest $request, string $transformer): JsonResponse|array
+    {
+        // Every custom field value and related record the rows show, loaded
+        // once per page instead of once per asset.
+        $assets->with($layout->eagerLoads());
+        $layout->applyListFilters($assets, $request, Setting::getSettings());
+        $layout->applySearch($assets, $request->input('search'), $request->input('filter'), $request->input('filter_operator'));
+        $layout->applySort($assets, $request->input('sort'), $request->input('order'));
+
+        $total = $assets->count();
+        $offset = ($request->input('offset') > $total) ? $total : app('api_offset_value');
+        $limit = app('api_limit_value');
+        $rows = $assets->skip($offset)->take($limit)->get();
+        if ($request->input('components')) {
+            $rows->loadMissing(['components' => fn ($query) => $query->orderBy('created_at', 'desc')]);
+        }
+
+        $response = (new $transformer)->transformAssets($rows, $total, $request);
+        $response['layout'] = [
+            'category_id' => (int) $layout->category->id,
+            'explicit' => $layout->explicit,
+            'columns' => $layout->metadata(),
+        ];
+
+        return $response;
     }
 
     /**

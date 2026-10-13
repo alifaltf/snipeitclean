@@ -55,6 +55,50 @@ final class AssetTableFieldCatalog
         'updated_at' => 'general.updated_at',
     ];
 
+    /**
+     * ERS Phase 7B: how each standard column may be sorted and searched in
+     * a category asset table, the only server-side allowlist for both.
+     *
+     *  - sort:   "assets.<column>" (a plain column), "scope:<Name>" (the
+     *            existing Asset::scope<Name>($order) ordering scope, as the
+     *            asset API uses), or null (not sortable);
+     *  - search: "assets.<column>" (text match on the column),
+     *            "relation:<relation path>.<column>" (text match on a
+     *            related record), or null (not searchable).
+     *
+     * @var array<string, array{sort: ?string, search: ?string}>
+     */
+    public const STANDARD_QUERY = [
+        'asset_tag' => ['sort' => 'assets.asset_tag', 'search' => 'assets.asset_tag'],
+        'name' => ['sort' => 'assets.name', 'search' => 'assets.name'],
+        'model' => ['sort' => 'scope:OrderModels', 'search' => 'relation:model.name'],
+        'serial' => ['sort' => 'assets.serial', 'search' => 'assets.serial'],
+        'status' => ['sort' => 'scope:OrderStatus', 'search' => 'relation:status.name'],
+        'model_number' => ['sort' => 'scope:OrderModelNumber', 'search' => 'relation:model.model_number'],
+        'manufacturer' => ['sort' => 'scope:OrderManufacturer', 'search' => 'relation:model.manufacturer.name'],
+        'company' => ['sort' => 'scope:OrderCompany', 'search' => 'relation:company.name'],
+        'assigned_to' => ['sort' => 'scope:OrderAssigned', 'search' => null],
+        'location' => ['sort' => 'scope:OrderLocation', 'search' => 'relation:location.name'],
+        'rtd_location' => ['sort' => 'scope:OrderRtdLocation', 'search' => 'relation:defaultLoc.name'],
+        'image' => ['sort' => null, 'search' => null],
+        'supplier' => ['sort' => 'scope:OrderSupplier', 'search' => 'relation:supplier.name'],
+        'order_number' => ['sort' => 'assets.order_number', 'search' => 'assets.order_number'],
+        'purchase_date' => ['sort' => 'assets.purchase_date', 'search' => null],
+        'purchase_cost' => ['sort' => 'assets.purchase_cost', 'search' => null],
+        'warranty_months' => ['sort' => 'assets.warranty_months', 'search' => null],
+        'warranty_expires' => ['sort' => null, 'search' => null],
+        'asset_eol_date' => ['sort' => 'assets.asset_eol_date', 'search' => null],
+        'requestable' => ['sort' => 'assets.requestable', 'search' => null],
+        'byod' => ['sort' => 'assets.byod', 'search' => null],
+        'last_checkout' => ['sort' => 'assets.last_checkout', 'search' => null],
+        'expected_checkin' => ['sort' => 'assets.expected_checkin', 'search' => null],
+        'last_audit_date' => ['sort' => 'assets.last_audit_date', 'search' => null],
+        'next_audit_date' => ['sort' => 'assets.next_audit_date', 'search' => null],
+        'notes' => ['sort' => 'assets.notes', 'search' => 'assets.notes'],
+        'created_at' => ['sort' => 'assets.created_at', 'search' => null],
+        'updated_at' => ['sort' => 'assets.updated_at', 'search' => null],
+    ];
+
     /** The layout of a final category that has not been configured. */
     public const DEFAULT_KEYS = [
         'standard:asset_tag',
