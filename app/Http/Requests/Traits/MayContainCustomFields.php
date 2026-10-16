@@ -5,6 +5,7 @@ namespace App\Http\Requests\Traits;
 use App\Models\Asset;
 use App\Models\AssetModel;
 use App\Models\CustomField;
+use App\Services\AssetFields\AssetCustomFieldEligibility;
 
 trait MayContainCustomFields
 {
@@ -33,9 +34,7 @@ trait MayContainCustomFields
 
         // collect the custom fields in the request
         $validator->after(function ($validator) use ($asset_model) {
-            $request_fields = $this->collect()->keys()->filter(function ($attributes) {
-                return str_starts_with($attributes, '_snipeit_');
-            });
+            $request_fields = collect(AssetCustomFieldEligibility::submittedKeys($this->all()));
 
             if ($request_fields->isEmpty() || ! $validator->errors()->isEmpty()) {
                 return;
@@ -45,11 +44,13 @@ trait MayContainCustomFields
             // against, since different assets in the batch may carry
             // different fieldsets. We still flag truly nonexistent
             // custom-field columns (typo catch); per-model membership is
-            // deferred to save-time, where applyAssetUpdate silently
-            // ignores fields the asset's own model doesn't carry.
+            // checked by the bulk controller against the selected assets
+            // (ERS Phase 7C) before anything is written.
             if ($asset_model === null) {
-                $request_fields->each(function ($request_field_name) use ($validator) {
-                    if (! CustomField::where('db_column', $request_field_name)->exists()) {
+                // Which submitted keys name a real custom field (one query).
+                $known = array_flip(CustomField::query()->whereIn('db_column', $request_fields->all())->pluck('db_column')->all());
+                $request_fields->each(function ($request_field_name) use ($validator, $known) {
+                    if (! isset($known[$request_field_name])) {
                         $validator->errors()->add($request_field_name, trans('validation.custom.custom_field_not_found'));
                     }
                 });
@@ -57,16 +58,13 @@ trait MayContainCustomFields
                 return;
             }
 
-            // Single-target-model path: fields present in the request but
-            // not on this asset's fieldset are errors.
-            $request_fields->diff($asset_model->fieldset?->fields?->pluck('db_column'))
-                ->each(function ($request_field_name) use ($validator) {
-                    if (CustomField::where('db_column', $request_field_name)->exists()) {
-                        $validator->errors()->add($request_field_name, trans('validation.custom.custom_field_not_found_on_model'));
-                    } else {
-                        $validator->errors()->add($request_field_name, trans('validation.custom.custom_field_not_found'));
-                    }
-                });
+            // Single-target-model path (ERS Phase 7C: the shared eligibility
+            // rule): fields present in the request but not in the current
+            // fieldset of the (destination) model are errors, and nothing
+            // is written.
+            foreach (app(AssetCustomFieldEligibility::class)->ineligibleKeyErrors($asset_model, $request_fields->all()) as $key => $message) {
+                $validator->errors()->add($key, $message);
+            }
         });
     }
 }

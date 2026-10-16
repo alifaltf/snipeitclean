@@ -9,6 +9,7 @@ use App\Models\Company;
 use App\Models\CustomField;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\AssetFields\AssetCustomFieldEligibility;
 use App\Services\AssetImport\AssetImportFieldCatalog;
 use App\Services\AssetImport\Validation\AssetImportValidatedRow;
 use App\Services\AssetImport\Validation\AssetImportValidationResult;
@@ -119,7 +120,10 @@ final class AssetImportAssetWriter
         $asset->setImported(true);
 
         $customLabels = [];
-        foreach ($model->fieldset?->fields ?? [] as $field) {
+        // ERS Phase 7C: only fields the model's current fieldset gives an
+        // asset (the shared eligibility rule); validation put nothing else
+        // in the row's attributes.
+        foreach (app(AssetCustomFieldEligibility::class)->fieldsFor($model) as $field) {
             /** @var CustomField $field */
             $column = $field->db_column_name();
             $customLabels[$column] = (string) $field->name;

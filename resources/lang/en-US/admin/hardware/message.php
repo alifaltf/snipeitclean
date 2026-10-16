@@ -181,5 +181,7 @@ return [
     // ERS Phase 5B2: one generic answer for a bulk selection containing any
     // id that is missing, hidden or otherwise not available to the user.
     'bulk_selection_unavailable' => 'One or more of the selected assets do not exist or are not available to you. Nothing was changed.',
+    // ERS Phase 7C
+    'bulk_custom_field_ineligible' => 'One or more custom fields are not part of the fieldset of the selected asset model(s). Nothing was changed.',
 
 ];

@@ -32,6 +32,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetCategorySelection;
 use App\Services\AssetCategoryWriteAuthorizer;
+use App\Services\AssetFields\AssetCustomFieldEligibility;
 use App\Services\AssetTableLayout\AssetTableLayoutQuery;
 use App\Services\AssetUniqueness\AssetRestorer;
 use App\Services\AssetUniqueness\UniqueConstraintViolation;
@@ -783,8 +784,10 @@ class AssetsController extends Controller
 
         // Check that it's an object and not a collection
         // (Sometimes people send arrays here and they shouldn't
-        if (($model) && ($model instanceof AssetModel) && ($model->fieldset)) {
-            foreach ($model->fieldset->fields as $field) {
+        // ERS Phase 7C: only the model's eligible fields (shared rule;
+        // StoreAssetRequest has already rejected any other custom-field key).
+        if (($model) && ($model instanceof AssetModel)) {
+            foreach (app(AssetCustomFieldEligibility::class)->fieldsFor($model) as $field) {
 
                 // Set the field value based on what was sent in the request
                 $field_val = $request->input($field->db_column, null);
@@ -800,7 +803,7 @@ class AssetsController extends Controller
                 if ($field->field_encrypted == '1') {
                     Log::debug('This model field is encrypted in this fieldset.');
 
-                    if (Gate::allows('assets.view.encrypted_custom_fields')) {
+                    if (Gate::allows('assets.view.encrypted_custom_fields') && ! AssetCustomFieldEligibility::isMaskedPlaceholder($request->input($field->db_column))) {
 
                         // If input value is null, use custom field's default value
                         if (($field_val == null) && ($request->has('model_id') != '')) {
@@ -915,6 +918,25 @@ class AssetsController extends Controller
         $writes->primeModels($assets);
         foreach ($assets as $asset) {
             $this->authorize('editRecord', $asset);
+        }
+
+        // ERS Phase 7C: a custom-field key must be eligible for at least one
+        // asset of the batch (its current model; a new model_id was already
+        // checked against that model by the request). A key no asset can
+        // store refuses the whole batch before anything is written; an
+        // accepted key is written only to assets whose model stores it.
+        if (! $request->filled('model_id')) {
+            $eligible = app(AssetCustomFieldEligibility::class)->columnsForAny($assets->map(fn (Asset $asset) => $asset->model));
+            $refused = array_values(array_filter(AssetCustomFieldEligibility::submittedKeys($request->all()), fn (string $key) => ! isset($eligible[$key])));
+            if ($refused !== []) {
+                $messages = array_fill_keys($refused, [trans('validation.custom.custom_field_not_found_on_model')]);
+
+                return response()->json([
+                    'status' => 'error',
+                    'messages' => trans('admin/hardware/message.bulk_update.error'),
+                    'results' => array_map(fn (int $id) => ['id' => $id, 'status' => 'error', 'messages' => $messages, 'payload' => null], $ids),
+                ]);
+            }
         }
 
         $results = [];
@@ -1059,9 +1081,15 @@ class AssetsController extends Controller
         $model = $asset->model;
 
         $problems_updating_encrypted_custom_fields = false;
-        if ($model && isset($model->fieldset)) {
-            foreach ($model->fieldset->fields as $field) {
+        // ERS Phase 7C: only the destination model's eligible fields (shared
+        // rule; UpdateAssetRequest has already rejected any other key). The
+        // masked placeholder never overwrites a stored encrypted value.
+        if ($model) {
+            foreach (app(AssetCustomFieldEligibility::class)->fieldsFor($model) as $field) {
                 if (! $request->has($field->db_column)) {
+                    continue;
+                }
+                if ($field->field_encrypted == '1' && AssetCustomFieldEligibility::isMaskedPlaceholder($request->input($field->db_column))) {
                     continue;
                 }
 

@@ -22,6 +22,7 @@ use App\Rules\AuthorisedAssetModel;
 use App\Services\AssetCategoryAccess;
 use App\Services\AssetCategorySelection;
 use App\Services\AssetCategoryWriteAuthorizer;
+use App\Services\AssetFields\AssetCustomFieldEligibility;
 use App\Services\AssetImport\AssetImportAuthorizer;
 use App\Services\AssetTableLayout\AssetTableLayoutQuery;
 use App\Services\AssetUniqueness\AssetRestorer;
@@ -39,6 +40,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use TypeError;
 
@@ -227,10 +229,13 @@ class AssetsController extends Controller
                 // Update custom fields in the database.
                 // Validation for these fields is handled through the AssetRequest form request
 
-                if (($model) && ($model->fieldset)) {
-                    foreach ($model->fieldset->fields as $field) {
+                // ERS Phase 7C: only the model's eligible fields (shared rule;
+                // CreateMultipleAssetRequest has already rejected any other
+                // custom-field key).
+                if ($model) {
+                    foreach (app(AssetCustomFieldEligibility::class)->fieldsFor($model) as $field) {
                         if ($field->field_encrypted == '1') {
-                            if (Gate::allows('assets.view.encrypted_custom_fields')) {
+                            if (Gate::allows('assets.view.encrypted_custom_fields') && ! AssetCustomFieldEligibility::isMaskedPlaceholder($request->input($field->db_column))) {
                                 if (is_array($request->input($field->db_column))) {
                                     $asset->{$field->db_column} = Crypt::encrypt(implode(', ', $request->input($field->db_column)));
                                 } else {
@@ -457,6 +462,17 @@ class AssetsController extends Controller
             'model_id' => [AuthorisedAssetModel::forUpdate(is_numeric($asset->getOriginal('model_id')) ? (int) $asset->getOriginal('model_id') : null)],
         ])->validate();
 
+        // ERS Phase 7C: custom fields may only be submitted for the current
+        // fieldset of the destination model (the submitted model, else the
+        // current one). Any other custom-field key is rejected before
+        // anything is changed, exactly as the API and create paths do.
+        $eligibility = app(AssetCustomFieldEligibility::class);
+        $destination = $request->has('model_id') ? AssetModel::find($request->input('model_id')) : $asset->model;
+        $ineligible = $eligibility->ineligibleKeyErrors($destination, AssetCustomFieldEligibility::submittedKeys($request->all()));
+        if ($ineligible !== []) {
+            throw ValidationException::withMessages($ineligible);
+        }
+
         $asset->status_id = $request->input('status_id', null);
         $asset->warranty_months = $request->input('warranty_months', null);
         $asset->purchase_cost = $request->input('purchase_cost', null);
@@ -548,14 +564,26 @@ class AssetsController extends Controller
         // FIXME: No idea why this is returning a Builder error on db_column_name.
         // Need to investigate and fix. Using static method for now.
         $model = AssetModel::find($request->input('model_id'));
-        if (($model) && ($model->fieldset)) {
-            foreach ($model->fieldset->fields as $field) {
+        // ERS Phase 7C: validate and write against the DESTINATION model.
+        // A model relation loaded earlier (e.g. for the EOL date above)
+        // would otherwise make Asset::save() apply the OLD fieldset's
+        // rules, so required fields of the new fieldset were not enforced.
+        $asset->setRelation('model', $model);
+        if ($model) {
+            foreach ($eligibility->fieldsFor($model) as $field) {
+                $encrypted = $field->field_encrypted == '1';
+                $mayWriteEncrypted = Gate::allows('assets.view.encrypted_custom_fields');
+                // An encrypted field is never cleared or overwritten by a
+                // user who may not see it, nor by the masked placeholder.
+                if ($encrypted && (! $mayWriteEncrypted || AssetCustomFieldEligibility::isMaskedPlaceholder($request->input($field->db_column)))) {
+                    continue;
+                }
                 if ($field->element == 'checkbox' && ! $request->has($field->db_column)) {
                     $asset->{$field->db_column} = null;
                 }
                 if ($request->has($field->db_column)) {
-                    if ($field->field_encrypted == '1') {
-                        if (Gate::allows('assets.view.encrypted_custom_fields')) {
+                    if ($encrypted) {
+                        if ($mayWriteEncrypted) {
                             if (is_array($request->input($field->db_column))) {
                                 $asset->{$field->db_column} = Crypt::encrypt(implode(', ', $request->input($field->db_column)));
                             } else {

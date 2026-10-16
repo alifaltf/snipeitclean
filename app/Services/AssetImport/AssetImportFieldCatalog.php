@@ -5,6 +5,7 @@ namespace App\Services\AssetImport;
 use App\Models\AssetImportSession;
 use App\Models\CustomField;
 use App\Models\User;
+use App\Services\AssetFields\AssetCustomFieldEligibility;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
@@ -20,7 +21,9 @@ use Illuminate\Support\Facades\Gate;
  * when that source is "from CSV" (a fixed source is never also mapped).
  *
  * Custom fields come from fieldsets: the fixed model's fieldset, or the
- * union of the fieldsets of every live model in the selected category.
+ * union of the fieldsets of every live model in the selected category
+ * (ERS Phase 7C: the same model/fieldset rule as the asset forms, see
+ * AssetCustomFieldEligibility; table layouts play no part).
  * Encrypted fields are offered only to users who may view encrypted
  * custom fields, and are marked sensitive.
  */
@@ -179,16 +182,21 @@ final class AssetImportFieldCatalog
             return collect();
         }
 
+        // ERS Phase 7C: a field with a structurally invalid column is never
+        // offered (the shared eligibility rule, as for forms and layouts).
         return CustomField::query()
             ->join('custom_field_custom_fieldset', 'custom_field_custom_fieldset.custom_field_id', '=', 'custom_fields.id')
             ->whereIn('custom_field_custom_fieldset.custom_fieldset_id', $fieldsetIds)
-            ->groupBy('custom_fields.id', 'custom_fields.name', 'custom_fields.field_encrypted')
+            ->groupBy('custom_fields.id', 'custom_fields.name', 'custom_fields.field_encrypted', 'custom_fields.db_column')
             ->orderBy('custom_fields.name')
             ->get([
                 'custom_fields.id',
                 'custom_fields.name',
                 'custom_fields.field_encrypted',
+                'custom_fields.db_column',
                 DB::raw('MAX(custom_field_custom_fieldset.required) as required_somewhere'),
-            ]);
+            ])
+            ->filter(fn (CustomField $field) => AssetCustomFieldEligibility::isStorableColumn($field->db_column))
+            ->values();
     }
 }

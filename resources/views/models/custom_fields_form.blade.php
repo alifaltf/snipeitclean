@@ -8,7 +8,8 @@
             {{ trans('admin/custom_fields/general.custom_fields') }}
         </x-form.legend>
 
-  @foreach($model->fieldset->fields as $field)
+  {{-- ERS Phase 7C: the shared eligibility rule decides which fields the form offers. --}}
+  @foreach(app(\App\Services\AssetFields\AssetCustomFieldEligibility::class)->fieldsFor($model) as $field)
     @if (!isset($show_custom_fields_type) || ($field->displayFieldInCurrentForm($show_custom_fields_type)))
 
 
@@ -23,11 +24,28 @@
 
           {{ $field->name }}
 
+          {{-- ERS Phase 7C: required fields are marked for every element type. --}}
+          @if ($field->pivot->required == '1')
+              <span class="text-danger" aria-hidden="true">*</span>
+              <span class="sr-only">({{ trans('admin/custom_fields/general.required') }})</span>
+          @endif
+
       </label>
 
         <div class="col-md-8 col-sm-12">
 
-          @if ($field->element!='text')
+          @php
+              // ERS Phase 7C: an encrypted field the user may not view is
+              // shown masked and disabled for EVERY element type and is not
+              // submitted, so the form never carries its plaintext and
+              // never sends a value that could clear or replace it.
+              $ersMaskedField = $field->field_encrypted == '1' && ! Gate::allows('assets.view.encrypted_custom_fields');
+              $ersFieldValue = (isset($item) && $field->field_encrypted == '1' && ! $ersMaskedField) ? Helper::gracefulDecrypt($field, $item->{$field->db_column_name()}) : (isset($item) ? $item->{$field->db_column_name()} : null);
+          @endphp
+
+          @if ($ersMaskedField)
+              <input type="text" value="{{ strtoupper(trans('admin/custom_fields/general.encrypted')) }}" class="form-control disabled" disabled>
+          @elseif ($field->element!='text')
 
               @if ($field->element=='listbox')
                   <!-- Listbox -->
@@ -55,7 +73,7 @@
                   @foreach ($field->formatFieldValuesAsArray() as $key => $value)
                       <div>
                           <label class="form-control">
-                              <input type="checkbox" value="{{ $value }}" name="{{ $field->db_column_name() }}[]" {{  isset($item) ? (in_array($value, array_map('trim', explode(',', $item->{$field->db_column_name()}))) ? ' checked="checked"' : '') : (old($field->db_column_name()) != '' ? ' checked="checked"' : (in_array($key, array_map('trim', explode(',', $field->defaultValue($model->id)))) ? ' checked="checked"' : '')) }}>
+                              <input type="checkbox" value="{{ $value }}" name="{{ $field->db_column_name() }}[]" {{  isset($item) ? (in_array($value, array_map('trim', explode(',', (string) $ersFieldValue))) ? ' checked="checked"' : '') : (old($field->db_column_name()) != '' ? ' checked="checked"' : (in_array($key, array_map('trim', explode(',', $field->defaultValue($model->id)))) ? ' checked="checked"' : '')) }}>
                               {{ $value }}
                           </label>
                       </div>
@@ -66,7 +84,7 @@
                   @foreach ($field->formatFieldValuesAsArray() as $value)
                       <div>
                           <label class="form-control">
-                              <input type="radio" value="{{ $value }}" name="{{ $field->db_column_name() }}" {{ isset($item) ? ($item->{$field->db_column_name()} == $value ? ' checked="checked"' : '') : (old($field->db_column_name()) != '' ? ' checked="checked"' : (in_array($value, explode(', ', $field->defaultValue($model->id))) ? ' checked="checked"' : '')) }}>
+                              <input type="radio" value="{{ $value }}" name="{{ $field->db_column_name() }}" {{ isset($item) ? ($ersFieldValue == $value ? ' checked="checked"' : '') : (old($field->db_column_name()) != '' ? ' checked="checked"' : (in_array($value, explode(', ', $field->defaultValue($model->id))) ? ' checked="checked"' : '')) }}>
                               {{ $value }}
                           </label>
                       </div>

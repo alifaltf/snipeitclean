@@ -13,6 +13,7 @@ use App\Models\Setting;
 use App\Models\Statuslabel;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\AssetFields\AssetCustomFieldEligibility;
 use App\Services\AssetImport\AssetImportCsvInspector;
 use App\Services\AssetImport\AssetImportDestination;
 use App\Services\AssetImport\AssetImportFieldCatalog;
@@ -138,6 +139,10 @@ final class AssetImportValidator
         if ($fieldsetIds->isNotEmpty()) {
             foreach (CustomFieldset::query()->with('fields')->whereIn('id', $fieldsetIds)->get() as $fieldset) {
                 foreach ($fieldset->fields as $field) {
+                    // ERS Phase 7C: the shared structural rule (as forms).
+                    if (! AssetCustomFieldEligibility::isStorableColumn($field->db_column)) {
+                        continue;
+                    }
                     $fieldsets[$fieldset->id][$field->id] = ['field' => $field, 'required' => (string) $field->pivot->required === '1'];
                 }
             }

@@ -22,6 +22,7 @@ use App\Models\Statuslabel;
 use App\Models\User;
 use App\Rules\AuthorisedAssetModel;
 use App\Services\AssetCategoryWriteAuthorizer;
+use App\Services\AssetFields\AssetCustomFieldEligibility;
 use App\Services\AssetUniqueness\AssetRestorer;
 use App\Services\AssetUniqueness\UniqueConstraintViolation;
 use App\View\Label;
@@ -345,8 +346,30 @@ class BulkAssetsController extends Controller
         foreach ($assets as $asset) {
             $this->authorize('editRecord', $asset);
         }
+        $destinationModel = null;
         if ($request->filled('model_id')) {
             Validator::make($request->only('model_id'), ['model_id' => [AuthorisedAssetModel::forUpdate()]])->validate();
+            $destinationModel = AssetModel::find($request->input('model_id'));
+        }
+
+        // ERS Phase 7C: custom fields follow the shared eligibility rule.
+        // With a model change every asset gets the new model, so a custom
+        // field may only be set or cleared when the NEW model's fieldset
+        // has it; otherwise a field must belong to the fieldset of at least
+        // one selected asset's model (and is applied only to those assets,
+        // below). Any other filled or cleared custom field refuses the
+        // whole request before anything is written. The fieldsets of all
+        // models involved load once (no per-asset query).
+        $eligibility = app(AssetCustomFieldEligibility::class);
+        $eligibleColumns = $eligibility->columnsForAny($destinationModel !== null ? [$destinationModel] : $assets->map(fn (Asset $asset) => $asset->model));
+        $requestedColumns = array_merge(
+            array_filter(AssetCustomFieldEligibility::submittedKeys($request->all()), fn (string $key) => $request->filled($key)),
+            array_filter(array_map('strval', array_keys($custom_fields_to_null)), fn (string $key) => str_starts_with($key, AssetCustomFieldEligibility::KEY_PREFIX)),
+        );
+        foreach ($requestedColumns as $column) {
+            if (! isset($eligibleColumns[$column])) {
+                return redirect($bulk_back_url)->with('error', trans('admin/hardware/message.bulk_custom_field_ineligible'));
+            }
         }
 
         /**
@@ -565,9 +588,17 @@ class BulkAssetsController extends Controller
                  * Start all the custom fields shenanigans
                  */
 
-                // Does the model have a fieldset?
-                if ($asset->model?->fieldset) {
-                    foreach ($asset->model->fieldset->fields as $field) {
+                // ERS Phase 7C: write and validate against the destination
+                // model, so its fieldset decides which custom fields are
+                // stored and which are required (the loaded relation would
+                // otherwise still be the old model).
+                if ($destinationModel !== null) {
+                    $asset->setRelation('model', $destinationModel);
+                }
+
+                // Only the (destination) model's eligible fields.
+                if ($asset->model) {
+                    foreach ($eligibility->fieldsFor($asset->model) as $field) {
 
                         // null custom fields
                         if ($custom_fields_to_null) {
@@ -579,7 +610,10 @@ class BulkAssetsController extends Controller
                         }
 
                         if ((array_key_exists($field->db_column, $this->update_array)) && ($field->field_encrypted == '1')) {
-                            if (Gate::allows('admin')) {
+                            if (AssetCustomFieldEligibility::isMaskedPlaceholder($this->update_array[$field->db_column])) {
+                                // The masked placeholder keeps the stored value.
+                                unset($this->update_array[$field->db_column]);
+                            } elseif (Gate::allows('admin')) {
                                 $decrypted_old = Helper::gracefulDecrypt($field, $asset->{$field->db_column});
 
                                 /*

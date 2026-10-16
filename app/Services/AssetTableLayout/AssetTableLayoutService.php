@@ -5,6 +5,7 @@ namespace App\Services\AssetTableLayout;
 use App\Models\AssetCategoryColumn;
 use App\Models\Category;
 use App\Models\CustomField;
+use App\Services\AssetFields\AssetCustomFieldEligibility;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -242,9 +243,11 @@ final class AssetTableLayoutService
             ->orderBy('custom_fields.name')
             ->orderBy('custom_fields.id')
             ->get(['custom_fields.id', 'custom_fields.name', 'custom_fields.field_encrypted', 'custom_fields.db_column', 'custom_fields.format'])
-            // ERS Phase 7B: only fields with a usable column on assets (a
-            // field whose column was never created cannot be shown).
-            ->filter(fn (CustomField $field) => preg_match('/\A[A-Za-z0-9_]{1,64}\z/', (string) $field->db_column) === 1)
+            // ERS Phase 7B/7C: only fields with a usable column on assets,
+            // by the same structural rule the asset forms and the CSV import
+            // use (AssetCustomFieldEligibility). Display eligibility never
+            // grants storage: forms and CSV look at the asset's own model.
+            ->filter(fn (CustomField $field) => AssetCustomFieldEligibility::isStorableColumn($field->db_column))
             ->keyBy(fn (CustomField $field) => (int) $field->id);
     }
 

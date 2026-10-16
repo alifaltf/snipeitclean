@@ -60,7 +60,7 @@ Example: Laptop shows Laptop fields; Chair shows Chair fields.
 - Encrypted-field visibility remains controlled by Snipe-IT's existing "View Encrypted Custom Fields" permission. The configuration page shows field names only, never values.
 - Phase 7A stores and manages the configuration only (`asset_category_columns`, one row per category and column with its position; the category's own page "Asset Table Columns", reached from the category edit page).
 - Phase 7B applies the layouts to asset tables, the asset API (on request), searching, sorting and CSV export (details below).
-- Phase 7C will finish form, fieldset and CSV regression coverage.
+- Phase 7C makes forms, fieldsets and the CSV import follow one custom-field eligibility rule (details below).
 
 Phase 7A details:
 
@@ -85,6 +85,18 @@ Phase 7B details (applying the layouts):
 - Encrypted custom-field values are shown, returned and exported only to users with "View Encrypted Custom Fields"; everyone else gets "ENCRYPTED", never the value or its ciphertext. Configuration pages and table definitions contain field names only.
 - Related records and custom-field definitions are loaded once per page or export chunk, so the number of database queries does not grow with the number of assets.
 - Nothing here changes asset data, forms, fieldsets or the secure CSV import.
+
+Phase 7C details (forms, fieldsets and CSV):
+
+- One rule decides which custom fields an asset may store (`AssetCustomFieldEligibility`): the fields of the CURRENT fieldset of the asset's (destination) model, if that model is live and the field has a native custom-field column (`_snipeit_...`). The web and API create/edit forms, bulk edit, the CSV mapping catalog, CSV validation and CSV execution all use it; the category table layout uses the same structural check. A Super Admin cannot write a field outside this rule either.
+- Table layouts are presentation only. Adding, removing, reordering, resetting or invalidating layout columns never changes asset values, fieldset membership, form fields, form validation or CSV mapping eligibility. A hidden layout column does not stop a field being imported, and a layout column never makes a field editable or importable.
+- Submitted custom-field keys outside the rule are rejected with a validation error and nothing is written (web and API create and edit, for every user). Bulk edit: with a model change, only the new model's fields may be set or cleared; without one, a field must belong to at least one selected asset's model and is written only to those assets; any other field refuses the whole request before anything is written (web and API).
+- Model changes (single and bulk) are authorised by Phase 5 (category Edit on the destination) and validated against the DESTINATION fieldset, including its required fields. Previously the web edit and bulk edit validated against the old fieldset; this was corrected. A failed change writes nothing for that asset. Values of fields the new fieldset lacks stay in the database (Snipe-IT never deletes them) but are not shown, returned, searched, sorted or exported; they appear again if the asset later moves to a model whose fieldset has the field. Bulk edit keeps Snipe-IT's per-asset results: a failing asset is not changed, the others are saved.
+- Required fields are marked in the forms and enforced on create and edit (including fields that became required later). Encrypted fields: a user without "View Encrypted Custom Fields" sees a disabled "ENCRYPTED" placeholder for every field type, never plaintext, and never changes or clears the value. Submitting the placeholder (or the "Error Decrypting" text shown for an unreadable value) keeps the stored value for every user, on web, API and bulk paths, so the literal word "ENCRYPTED" cannot be stored in an encrypted field.
+- Fieldset changes: a field added to a fieldset becomes editable and importable at once; a removed field, a fieldset that is detached or missing, a deleted field, and a field that becomes encrypted are handled without errors and without deleting stored values. Stale layout entries are skipped as in Phase 7A.
+- CSV import: the mapping offers only fields of the fixed model's fieldset (or, with the model taken from the CSV, of the category's live models, checked per row); a forged mapping is refused. Any change after mapping or validation (mapped field removed or deleted, model moved to another fieldset or category, required field added, grants, global permissions or company scope revoked) makes the session ineligible: validation detects it, and Phase 6C execution re-checks readiness and revalidates every row inside its transaction, so nothing is written. The user gets the generic "review the target/mapping" or "validate again" message and can repair the mapping and validate again.
+- No migration. Eligibility for several models loads in a fixed number of queries; bulk edit loads all fieldsets once.
+- Limitations: Snipe-IT's own checkbox-option rule cannot validate an encrypted checkbox value, and the field editor does not allow such fields. Snipe-IT's bulk edit writes encrypted values only for admins (unchanged).
 
 ## 4. Custom Fields
 
